@@ -68,19 +68,34 @@ def health_check():
     return {"status": "ok", "message": "QuensultingAI Voice Agent Backend is running."}
 
 @app.post("/check-availability", response_model=SlotAvailabilityResponse, status_code=status.HTTP_200_OK)
-def handle_check_slot_availability(request: SlotAvailabilityRequest):
+async def handle_check_slot_availability(request: Request):
     """
     Synchronous slot availability check endpoint. Called during the live call
     by Retell's custom tool 'check_slot_availability'.
     
-    Checks current bookings in Google Sheets. If the exact slot is booked,
-    returns up to 3 alternative times on the same date.
+    Supports both flat payloads (local tests) and Retell's nested payloads 
+    (where arguments are wrapped inside the 'args' field).
     """
     try:
+        body = await request.json()
+        
+        # Retell custom tools wrap parameters inside 'args'
+        args = body.get("args", {}) if isinstance(body.get("args"), dict) else body
+        
+        preferred_date = args.get("preferred_date")
+        preferred_time = args.get("preferred_time")
+        service = args.get("service")
+        
+        if not preferred_date or not preferred_time or not service:
+            raise ValueError(
+                f"Missing required fields. Received preferred_date={preferred_date}, "
+                f"preferred_time={preferred_time}, service={service}"
+            )
+            
         result = check_slot_availability(
-            preferred_date=request.preferred_date,
-            preferred_time=request.preferred_time,
-            service=request.service
+            preferred_date=preferred_date,
+            preferred_time=preferred_time,
+            service=service
         )
         return result
     except Exception as e:
@@ -91,6 +106,7 @@ def handle_check_slot_availability(request: SlotAvailabilityRequest):
             "message": "I'm having a little trouble checking our calendar right now. Let me check with our team shortly.",
             "alternatives": []
         }
+
 
 @app.post("/webhook/retell", status_code=status.HTTP_200_OK)
 async def handle_retell_webhook(

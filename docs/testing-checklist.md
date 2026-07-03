@@ -1,0 +1,10 @@
+- FAQ
+- Booking
+- Invalid phone
+- Invalid email
+- Change appointment
+- Google Sheets failure
+- Email failure
+- Human escalation
+- Silence
+- Interruptions

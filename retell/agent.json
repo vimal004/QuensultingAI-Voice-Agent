@@ -1,0 +1,12 @@
+{
+  "agent_name": "QuensultingAI Dental Clinic Receptionist",
+  "voice_id": "openai-Alloy",
+  "voice_temperature": 0.4,
+  "voice_speed": 1.0,
+  "volume": 1.0,
+  "responsiveness": 1.0,
+  "interruption_sensitivity": 0.8,
+  "enable_backchannel": true,
+  "backchannel_frequency": 0.8,
+  "opt_out_sensitive_data_storage": false
+}

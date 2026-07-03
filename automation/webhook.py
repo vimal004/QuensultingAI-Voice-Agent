@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Dict, Any, Optional
 from retell.lib.webhook_auth import verify as retell_verify
@@ -8,8 +9,13 @@ logger = logging.getLogger(__name__)
 def verify_webhook_signature(raw_body: str, api_key: Optional[str], signature: Optional[str]) -> bool:
     """
     Verifies that the webhook request is genuinely from Retell AI.
-    If api_key is not set (e.g. in local development), it logs a warning and returns True.
+    Bypassed if BYPASS_SIGNATURE_VERIFICATION is set to 'true' or if api_key is missing.
     """
+    bypass = os.getenv("BYPASS_SIGNATURE_VERIFICATION", "false").lower() == "true"
+    if bypass:
+        logger.warning("Webhook signature verification bypassed via BYPASS_SIGNATURE_VERIFICATION=true.")
+        return True
+        
     if not api_key:
         logger.warning("RETELL_API_KEY is not set. Webhook signature verification bypassed for local testing.")
         return True

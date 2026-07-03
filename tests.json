@@ -1,0 +1,17 @@
+[
+    {
+      "name": "Successful Dental Cleaning Booking",
+      "user_prompt": "You want to book an appointment for a \"dental cleaning\" next Tuesday, July 7th at 10:00 AM. When the assistant asks for your details, provide:\n- Name: John Doe\n- Phone: +15550199000\n- Email: vimalmanoharan.workspace@gmail.com\nConclude the call once the assistant confirms the appointment.",
+      "success_criteria": "1. The assistant successfully gathers the name, phone, email, date, time, and service.\n2. The assistant calls the \"check_slot_availability\" tool to verify the slot.\n3. The assistant confirms the booking for July 7th at 10:00 AM.\n4. The assistant ends the call politely."
+    },
+    {
+      "name": "Book Taken Slot (Conflict & Alternates)",
+      "user_prompt": "You want to book a dental cleaning for next Tuesday, July 7th at 10:00 AM. The assistant should tell you that slot is already taken. When the assistant proposes alternatives, choose 11:00 AM. Provide the patient details (John Doe, +15550199000, vimalmanoharan.workspace@gmail.com) and confirm the booking at 11:00 AM.",
+      "success_criteria": "1. The assistant calls \"check_slot_availability\" for 10:00 AM and identifies it as unavailable.\n2. The assistant reads out the alternative slots (e.g., 9:00 AM, 11:00 AM, 12:00 PM) to the caller.\n3. The assistant successfully transitions to booking 11:00 AM when requested by the caller.\n4. The assistant confirms the new booking."
+    },
+    {
+      "name": "Appointment Cancellation",
+      "user_prompt": "You want to cancel your existing appointment for next Tuesday. When the assistant asks, provide your name (John Doe) and phone number (+15550199000) so they can look it up. Ensure the assistant notes down your request to cancel the appointment.",
+      "success_criteria": "1. The assistant understands the cancellation intent.\n2. The assistant gathers the patient's name and contact number.\n3. The assistant promises that the front desk team will process the cancellation and contact them back if needed."
+    }
+  ]

@@ -1,0 +1,516 @@
+{
+  "agent_id": "",
+  "channel": "voice",
+  "last_modification_timestamp": 1783068941030,
+  "agent_name": "Conversation Flow Agent",
+  "response_engine": {
+    "type": "conversation-flow",
+    "version": 0,
+    "conversation_flow_id": "conversation_flow_cf070be85198"
+  },
+  "language": "en-US",
+  "data_storage_setting": "everything",
+  "opt_in_signed_url": false,
+  "version": 0,
+  "assigned_tags": [],
+  "is_published": false,
+  "post_call_analysis_model": "gpt-4.1",
+  "pii_config": {
+    "mode": "post_call",
+    "categories": []
+  },
+  "handbook_config": {
+    "conversational_personality": true,
+    "echo_verification": true,
+    "speech_normalization": true,
+    "default_personality": false,
+    "scope_boundaries": true,
+    "natural_filler_words": true,
+    "high_empathy": true,
+    "ai_disclosure": true
+  },
+  "post_call_analysis_data": [
+    {
+      "type": "string",
+      "name": "full_name",
+      "description": "The patient's full first and last name."
+    },
+    {
+      "type": "string",
+      "name": "phone",
+      "description": "The patient's contact phone number. Falls back to the caller ID if the caller did not provide one."
+    },
+    {
+      "type": "string",
+      "name": "email",
+      "description": "The patient's email address for the appointment confirmation."
+    },
+    {
+      "type": "string",
+      "name": "preferred_date",
+      "description": "The desired appointment date the caller gave (a future date)."
+    },
+    {
+      "type": "string",
+      "name": "preferred_time",
+      "description": "The caller's preferred time of day or specific time for the appointment."
+    },
+    {
+      "type": "string",
+      "name": "service",
+      "description": "The dental service the caller needs (e.g. cleaning, whitening, root canal, extraction, filling, braces, veneers, implants, general checkup, emergency)."
+    },
+    {
+      "type": "string",
+      "name": "notes",
+      "description": "Any symptoms, pain details, or special requests the caller mentioned. Empty if none."
+    }
+  ],
+  "voice_id": "retell-Cimo",
+  "reminder_trigger_ms": 5000,
+  "reminder_max_count": 2,
+  "max_call_duration_ms": 3600000,
+  "interruption_sensitivity": 0.9,
+  "allow_user_dtmf": true,
+  "user_dtmf_options": {},
+  "conversationFlow": {
+    "conversation_flow_id": "conversation_flow_cf070be85198",
+    "version": 0,
+    "last_modification_timestamp": 1783068941535,
+    "global_prompt": "You are a warm, empathetic, professional dental receptionist for QuensultingAI Dental Clinic. You help callers with clinic questions, new appointment requests, and reschedule or cancel requests.\n\nCurrent date and time: {{current_time}}\n\n## Response Guidelines\n- Speak conversationally and naturally. Never sound robotic.\n- Ask only ONE question per turn. Never stack multiple questions.\n- If the caller interrupts you, stop speaking immediately, listen, and respond to what they just said. Do not finish your previous sentence and do not restart the flow — resume from where you left off.\n- If the caller corrects a detail (\"actually\", \"wait\", \"change that\"), update only that specific detail and briefly re-confirm just that field.\n- If the caller asks you to repeat or says they didn't hear, repeat your last message.\n- If the caller says \"hold on\", \"one moment\", or \"please wait\", respond with exactly: NO_RESPONSE_NEEDED\n- Use natural acknowledgments such as \"Of course\", \"Sure\", \"Got it\", \"Absolutely\", \"Perfect\", \"Understood\".\n\n## Guardrails\n- Never claim an appointment is officially confirmed for a specific slot. It is always a request pending front desk confirmation.\n- Never guess or invent clinic information you were not given. If you don't know, offer to connect the caller with the front desk.\n- Do not give medical advice beyond directing emergencies to emergency care.\n- If the caller asks about something unrelated to the clinic (jokes, sports, weather, news, politics), respond briefly like: \"Ha, that's a fun one! I'm best at helping with dental appointments and clinic questions though. Is there anything I can help you with today?\" Do not engage further with the off-topic subject.\n- When reading back a phone number, state only the last four digits unless the caller explicitly asks for the full number.\n- Always end every call with: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\"",
+    "nodes": [
+      {
+        "name": "Greeting",
+        "edges": [
+          {
+            "destination_node_id": "collect_booking",
+            "id": "edge_greet_book",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to book, schedule, or set up a new appointment"
+            }
+          },
+          {
+            "destination_node_id": "faq",
+            "id": "edge_greet_faq",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller asks a general question about the clinic (hours, services, location, payment, insurance, walk-ins, or fees)"
+            }
+          },
+          {
+            "destination_node_id": "reschedule_cancel",
+            "id": "edge_greet_resched",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to reschedule, cancel, or change an existing appointment"
+            }
+          }
+        ],
+        "id": "greeting",
+        "type": "conversation",
+        "display_position": {
+          "x": 6,
+          "y": 606
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Greet the caller with exactly: \"Hello! Thank you for calling QuensultingAI Dental Clinic. How may I help you today?\"\n\nThen listen and determine what the caller needs so you can route them:\n- Booking a new appointment\n- A general clinic question (hours, services, location, payment, walk-ins, fees, insurance)\n- Rescheduling, canceling, or changing an existing appointment\n\nIf you cannot tell what they want, say: \"I'm sorry, I didn't quite catch that. Could you rephrase what you need?\" and let them clarify. Do not answer clinic questions or collect booking details here — just greet and understand their intent."
+        }
+      },
+      {
+        "name": "FAQ",
+        "edges": [
+          {
+            "destination_node_id": "collect_booking",
+            "id": "edge_faq_book",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to book or schedule an appointment"
+            }
+          },
+          {
+            "destination_node_id": "transfer_human",
+            "id": "edge_faq_transfer",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller asked something not covered by the clinic information and agrees to be transferred, or asks to speak with the front desk / a person"
+            }
+          },
+          {
+            "destination_node_id": "end_call",
+            "id": "edge_faq_done",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller has no further questions and does not want to book"
+            }
+          }
+        ],
+        "id": "faq",
+        "type": "conversation",
+        "display_position": {
+          "x": 1086,
+          "y": 918
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Answer the caller's question using ONLY the clinic information below. Keep answers brief and natural. After answering, ask: \"Is there anything else I can help you with, or would you like to book an appointment today?\"\n\nIf the caller asks something NOT covered below, say: \"That's a great question. For that, I'd recommend speaking with our front desk team directly. Would you like me to transfer you?\"\n\nClinic information:\n- Hours: Monday to Saturday, 9 AM to 7 PM. Closed on Sundays.\n- Services: Cleaning, Whitening, Root Canal, Extraction, Cavity Filling, Braces, Veneers, Implants, General Checkup, Emergency.\n- Walk-ins: Accepted, but appointments are preferred.\n- Emergency appointments: Available same-day; the caller must call in directly.\n- Payment: Cash, card, and most major insurance providers accepted.\n- Location: Ask the caller to check the clinic website or Google Maps for the exact address.\n- Consultation fee: Starts from $50 depending on the service.\n\nDo not invent any details not listed here."
+        }
+      },
+      {
+        "name": "Collect Booking Details",
+        "edges": [
+          {
+            "destination_node_id": "confirm_booking",
+            "id": "edge_collected",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller has provided the service, preferred date, preferred time, full name, phone number, and email"
+            }
+          },
+          {
+            "destination_node_id": "end_call",
+            "id": "edge_book_abandon",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller no longer wants to book an appointment or wants to stop"
+            }
+          }
+        ],
+        "id": "collect_booking",
+        "type": "subagent",
+        "display_position": {
+          "x": 1614,
+          "y": 438
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Collect the caller's appointment request. Ask for ONE piece of information at a time, in this order. Do not stack questions. Acknowledge answers naturally as you go.\n\n1. Service: \"What brings you in today? Are you looking for a routine cleaning, or is there something specific you'd like us to look at?\"\n2. Preferred date: \"What date works best for you?\" Today is {{current_time}}. If the date is in the past, say: \"That date has already passed. Could you pick a future date?\" If the date is vague (e.g. \"next week\" or \"soon\"), say: \"Of course. Could you give me a specific date so I can note that down?\"\n3. Preferred time: \"And do you have a preferred time of day — morning, afternoon, or a specific time?\"\n4. Full name: \"May I have your full name please?\" If the name sounds complex or unclear, say: \"Could you spell that out for me just so I get it right?\"\n5. Phone number: \"And the best phone number to reach you on?\" If it sounds too short or invalid (e.g. only 4-5 digits), say: \"That doesn't quite seem like a valid phone number. Could you repeat it?\" If the caller declines to give a number, use their caller ID: {{user_number}}.\n6. Email: \"What is your email address for the confirmation?\" If it is missing an @ symbol or is obviously malformed, say: \"Could you repeat your email? I want to make sure I have it correct.\"\n7. Notes: \"Is there anything specific our team should know before your visit — any pain, sensitivity, or special requirements?\"\n\nIf the caller changes an earlier answer at any point (\"actually\", \"wait\", \"change that\"), update only that specific field and continue — do not restart. If you are returning here to correct a detail after the confirmation step, change only the field the caller mentioned and do not re-ask for information you already have.\n\nNotes are optional. Once you have the service, date, time, full name, phone number, and email, move on to confirm the details."
+        }
+      },
+      {
+        "name": "Confirm Details",
+        "edges": [
+          {
+            "destination_node_id": "submit_booking_fn",
+            "id": "edge_confirm_yes",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller confirms all the details are correct"
+            }
+          },
+          {
+            "destination_node_id": "collect_booking",
+            "id": "edge_confirm_change",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to change or correct one or more of the details"
+            }
+          }
+        ],
+        "id": "confirm_booking",
+        "type": "conversation",
+        "display_position": {
+          "x": 2358,
+          "y": 294
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Read back all the details you collected so the caller can confirm. Say:\n\"Let me confirm your details: Name [full name]; Service [service]; Date [preferred date]; Time [preferred time]; Phone ending in [last four digits of the phone number]; Email [email]; Notes [the notes, or 'None']. Does everything look correct?\"\n\nState ONLY the last four digits of the phone number, never the full number. Do not submit anything yourself — that happens on the next step once the caller confirms."
+        }
+      },
+      {
+        "tool_id": "tool_submit_booking",
+        "else_edge": {
+          "destination_node_id": "booking_failed",
+          "id": "edge_submit_fail",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Let the caller know you're submitting their request, e.g. \"Perfect, let me get that submitted for you.\""
+        },
+        "name": "Submit Booking",
+        "edges": [
+          {
+            "destination_node_id": "success_end",
+            "id": "edge_submit_ok",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The booking request was submitted successfully"
+            }
+          }
+        ],
+        "id": "submit_booking_fn",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 2910,
+          "y": 294
+        },
+        "wait_for_result": true
+      },
+      {
+        "name": "End Call",
+        "id": "success_end",
+        "type": "end",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 3438,
+          "y": 6
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Tell the caller: \"Your appointment request has been submitted. Our front desk team will send a confirmation email to [their email] with your exact slot. Thank you for choosing QuensultingAI Dental Clinic. Have a wonderful day!\" Then end the call."
+        }
+      },
+      {
+        "name": "Booking Failed",
+        "id": "booking_failed",
+        "type": "conversation",
+        "display_position": {
+          "x": 3438,
+          "y": 774
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Apologize and say: \"I'm sorry, it seems there was a technical issue saving your appointment details. I'd like to connect you with a member of our clinic staff who can help you directly. Please hold.\""
+        },
+        "skip_response_edge": {
+          "destination_node_id": "transfer_human",
+          "id": "edge_failed_transfer",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          }
+        }
+      },
+      {
+        "name": "Reschedule or Cancel",
+        "edges": [
+          {
+            "destination_node_id": "collect_booking",
+            "id": "edge_rc_book",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to book a new appointment"
+            }
+          },
+          {
+            "destination_node_id": "faq",
+            "id": "edge_rc_faq",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller has another general clinic question"
+            }
+          },
+          {
+            "destination_node_id": "end_call",
+            "id": "edge_rc_done",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller has nothing else and is done"
+            }
+          }
+        ],
+        "id": "reschedule_cancel",
+        "type": "conversation",
+        "display_position": {
+          "x": 534,
+          "y": 1518
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Help the caller reschedule or cancel an existing appointment. Say: \"Of course, I can help with that. May I have the name and phone number on your existing appointment?\" Collect the name and phone number, one at a time. Once you have both, say: \"I've noted your request. Our front desk team will confirm the change with you shortly by email or phone. Is there anything else I can help you with today?\""
+        }
+      },
+      {
+        "transfer_destination": {
+          "type": "predefined",
+          "number": "{{transfer_number}}"
+        },
+        "edge": {
+          "destination_node_id": "transfer_failed",
+          "id": "edge_transfer_failed",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Transfer failed"
+          }
+        },
+        "name": "Transfer to Front Desk",
+        "id": "transfer_human",
+        "transfer_option": {
+          "type": "cold_transfer"
+        },
+        "type": "transfer_call",
+        "display_position": {
+          "x": 3990,
+          "y": 1710
+        }
+      },
+      {
+        "name": "End Call",
+        "id": "transfer_failed",
+        "type": "end",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 4518,
+          "y": 1710
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Tell the caller you weren't able to connect them to a team member right now, apologize briefly, and suggest they call the clinic back shortly. Then say: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\""
+        }
+      },
+      {
+        "name": "End Call",
+        "id": "end_call",
+        "type": "end",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 2358,
+          "y": 894
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Politely close the call: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\""
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Say: \"That sounds like it could be a dental emergency. Please seek immediate medical attention or go to the nearest emergency facility right away. If you'd like, I can also connect you with our clinic staff immediately.\" Do not continue with any booking flow. Do not give medical advice beyond directing them to emergency care."
+        },
+        "name": "Emergency Handling",
+        "global_node_setting": {
+          "condition": "The caller mentions or describes a dental emergency such as heavy bleeding, severe or unbearable tooth pain, a knocked-out tooth, facial swelling, facial trauma, or an accident."
+        },
+        "edges": [
+          {
+            "destination_node_id": "transfer_human",
+            "id": "edge_em_transfer",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to be connected to clinic staff"
+            }
+          },
+          {
+            "destination_node_id": "end_call",
+            "id": "edge_em_no",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller does not want to be transferred or declines further help"
+            }
+          }
+        ],
+        "id": "emergency",
+        "type": "conversation",
+        "display_position": {
+          "x": 1710,
+          "y": 1230
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Say: \"I completely understand. Let me transfer you to one of our team members right away. Please hold for just a moment.\""
+        },
+        "name": "Human Escalation",
+        "global_node_setting": {
+          "condition": "The caller explicitly asks to speak with a real person, human, manager, or staff member; OR the caller is clearly angry, frustrated, or keeps repeating themselves; OR the conversation has broken down and you cannot help. Do NOT trigger during normal conversation, confirmations, or when the caller is simply answering questions or providing information."
+        },
+        "id": "human_escalation",
+        "type": "conversation",
+        "display_position": {
+          "x": 3438,
+          "y": 1854
+        },
+        "skip_response_edge": {
+          "destination_node_id": "transfer_human",
+          "id": "edge_esc_transfer",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          }
+        }
+      }
+    ],
+    "start_node_id": "greeting",
+    "start_speaker": "agent",
+    "tools": [
+      {
+        "tool_id": "tool_submit_booking",
+        "parameter_type": "json",
+        "method": "POST",
+        "timeout_ms": 20000,
+        "speak_after_execution": false,
+        "name": "submit_booking",
+        "description": "Submit a dental appointment request to the clinic backend. Only call this after the caller has confirmed all of their details are correct.",
+        "type": "custom",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "preferred_time": {
+              "type": "string",
+              "description": "Preferred time of day or specific time."
+            },
+            "full_name": {
+              "type": "string",
+              "description": "Patient full first and last name."
+            },
+            "notes": {
+              "type": "string",
+              "description": "Symptoms, pain details, or special requests. Empty string if none."
+            },
+            "phone": {
+              "type": "string",
+              "description": "Contact phone number. Use the caller ID if the caller did not provide one."
+            },
+            "service": {
+              "type": "string",
+              "description": "Dental service requested."
+            },
+            "email": {
+              "type": "string",
+              "description": "Email address for the confirmation."
+            },
+            "preferred_date": {
+              "type": "string",
+              "description": "Requested appointment date (a future date)."
+            }
+          },
+          "required": [
+            "full_name",
+            "phone",
+            "email",
+            "preferred_date",
+            "preferred_time",
+            "service"
+          ]
+        },
+        "speak_during_execution": false,
+        "url": "https://REPLACE-ME.quensultingai.example.com/appointments"
+      }
+    ],
+    "model_choice": {
+      "type": "cascading",
+      "model": "gpt-5.1"
+    },
+    "tool_call_strict_mode": true,
+    "knowledge_base_ids": [],
+    "kb_config": {
+      "top_k": 3,
+      "filter_score": 0.6
+    },
+    "begin_tag_display_position": {
+      "x": 6,
+      "y": 6
+    },
+    "is_published": false,
+    "is_transfer_cf": false
+  }
+}

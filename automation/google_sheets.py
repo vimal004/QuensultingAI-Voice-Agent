@@ -149,6 +149,47 @@ def append_booking_to_sheet(booking_details: dict) -> bool:
         raise e
 
 
+def normalize_time(time_str: str) -> str:
+    """
+    Normalizes time strings to HH:MM format (24-hour) for reliable comparison.
+    Handles formats like: "11:00 AM", "11:00 am", "11:00", "11:00:00", "1:00 PM", "13:00".
+    """
+    t = time_str.strip().lower()
+    is_pm = "pm" in t
+    is_am = "am" in t
+    
+    t_clean = t.replace("am", "").replace("pm", "").strip()
+    parts = t_clean.split(":")
+    if not parts or not parts[0]:
+        return time_str
+        
+    try:
+        hours = int(parts[0])
+        minutes = int(parts[1]) if len(parts) > 1 else 0
+        
+        if is_pm and hours < 12:
+            hours += 12
+        elif is_am and hours == 12:
+            hours = 0
+            
+        return f"{hours:02d}:{minutes:02d}"
+    except Exception:
+        return time_str
+
+
+def normalize_date(date_str: str) -> str:
+    """
+    Normalizes date strings to YYYY-MM-DD format.
+    """
+    d = date_str.strip()
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(d, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return d.lower()
+
+
 def check_slot_availability(
     preferred_date: str,
     preferred_time: str,
@@ -176,15 +217,15 @@ def check_slot_availability(
         raise
 
     # Normalise the requested slot for comparison
-    norm_date = preferred_date.strip().lower()
-    norm_time = preferred_time.strip().lower()
+    norm_date = normalize_date(preferred_date)
+    norm_time = normalize_time(preferred_time)
 
     # Collect all booked date+time pairs
     booked_slots: set[tuple[str, str]] = set()
     for row in rows:
         if len(row) > COL_TIME:
-            row_date = row[COL_DATE].strip().lower() if row[COL_DATE] else ""
-            row_time = row[COL_TIME].strip().lower() if row[COL_TIME] else ""
+            row_date = normalize_date(row[COL_DATE]) if row[COL_DATE] else ""
+            row_time = normalize_time(row[COL_TIME]) if row[COL_TIME] else ""
             booked_slots.add((row_date, row_time))
 
     # Check exact slot
@@ -207,6 +248,7 @@ def check_slot_availability(
             "message": (
                 f"I'm sorry, {preferred_time} on {preferred_date} is already taken. "
                 f"I do have availability at {alt_text} on the same day. Would any of those work for you?"
+                f" Please select one or suggest another time."
             ),
             "alternatives": alternatives[:3]
         }
@@ -239,9 +281,10 @@ def _find_alternative_slots(
 
     alternatives = []
     for hour in candidate_hours:
-        if hour == exclude_time:
+        norm_hour = normalize_time(hour)
+        if norm_hour == exclude_time:
             continue
-        if (norm_date, hour) not in booked_slots:
+        if (norm_date, norm_hour) not in booked_slots:
             # Format for display: "9:00 AM"
             alternatives.append({
                 "date": norm_date,
@@ -251,3 +294,4 @@ def _find_alternative_slots(
             break
 
     return alternatives
+

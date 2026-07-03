@@ -7,7 +7,9 @@ from fastapi import FastAPI, Request, Header, HTTPException, BackgroundTasks, st
 from fastapi.middleware.cors import CORSMiddleware
 
 from automation.webhook import verify_webhook_signature, parse_webhook_payload
+from automation.google_sheets import check_slot_availability
 from backend.services.booking_service import process_booking
+from backend.models.schemas import SlotAvailabilityRequest, SlotAvailabilityResponse
 
 # Configure logging
 logging.basicConfig(
@@ -43,17 +45,18 @@ def run_booking_workflow(payload: Dict[str, Any]):
         # Parse the webhook payload into standardized BookingDetails
         booking_details = parse_webhook_payload(payload)
         
-        # Guard clause: only process booking integrations if the booking was successful
-        if not booking_details.booking_successful:
+        # Guard clause: only process if the booking was successful OR it's a reschedule/cancel request
+        is_reschedule_or_cancel = booking_details.call_type in ["reschedule", "cancel"]
+        if not booking_details.booking_successful and not is_reschedule_or_cancel:
             logger.info(
-                f"Call {booking_details.call_id} was completed without a successful booking. "
-                "Skipping Google Sheets and SMTP Email workflow."
+                f"Call {booking_details.call_id} (type: {booking_details.call_type}) was completed "
+                "without a successful booking or reschedule/cancel request. Skipping integrations."
             )
             return
             
         # Execute Sheets append and Email notifications (includes retry-once logic)
         result = process_booking(booking_details)
-        logger.info(f"Booking workflow successfully executed in background: {result}")
+        logger.info(f"Booking/Request workflow successfully executed in background: {result}")
     except Exception as e:
         logger.error(f"Error executing booking workflow in background: {e}", exc_info=True)
 
@@ -63,6 +66,31 @@ def health_check():
     Service health check endpoint.
     """
     return {"status": "ok", "message": "QuensultingAI Voice Agent Backend is running."}
+
+@app.post("/check-availability", response_model=SlotAvailabilityResponse, status_code=status.HTTP_200_OK)
+def handle_check_slot_availability(request: SlotAvailabilityRequest):
+    """
+    Synchronous slot availability check endpoint. Called during the live call
+    by Retell's custom tool 'check_slot_availability'.
+    
+    Checks current bookings in Google Sheets. If the exact slot is booked,
+    returns up to 3 alternative times on the same date.
+    """
+    try:
+        result = check_slot_availability(
+            preferred_date=request.preferred_date,
+            preferred_time=request.preferred_time,
+            service=request.service
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error checking slot availability: {e}", exc_info=True)
+        # Fallback response so the voice agent doesn't crash during the call
+        return {
+            "available": False,
+            "message": "I'm having a little trouble checking our calendar right now. Let me check with our team shortly.",
+            "alternatives": []
+        }
 
 @app.post("/webhook/retell", status_code=status.HTTP_200_OK)
 async def handle_retell_webhook(

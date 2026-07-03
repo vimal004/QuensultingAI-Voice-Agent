@@ -66,6 +66,28 @@ def test_run_booking_workflow_successful(mock_process_booking):
     mock_process_booking.assert_called_once()
 
 @patch("backend.app.process_booking")
+def test_run_booking_workflow_reschedule(mock_process_booking):
+    from backend.app import run_booking_workflow
+    
+    mock_payload = {
+        "event": "call_analyzed",
+        "call": {
+            "call_id": "call_test_resched",
+            "from_number": "+1112223333",
+            "call_analysis": {
+                "custom_analysis_data": {
+                    "booking_successful": "False",
+                    "call_type": "reschedule",
+                    "reschedule_cancel_details": "Jane Smith, 555-1212"
+                }
+            }
+        }
+    }
+    
+    run_booking_workflow(mock_payload)
+    mock_process_booking.assert_called_once()
+
+@patch("backend.app.process_booking")
 def test_run_booking_workflow_unsuccessful(mock_process_booking):
     from backend.app import run_booking_workflow
     
@@ -77,7 +99,8 @@ def test_run_booking_workflow_unsuccessful(mock_process_booking):
             "call_analysis": {
                 "custom_analysis_data": {
                     "Full Name": "Jane Fail",
-                    "booking_successful": "False"
+                    "booking_successful": "False",
+                    "call_type": "faq_only"
                 }
             }
         }
@@ -85,3 +108,29 @@ def test_run_booking_workflow_unsuccessful(mock_process_booking):
     
     run_booking_workflow(mock_payload)
     mock_process_booking.assert_not_called()
+
+@patch("backend.app.check_slot_availability")
+def test_check_availability_endpoint(mock_check_availability):
+    mock_check_availability.return_value = {
+        "available": True,
+        "message": "Available slot",
+        "alternatives": []
+    }
+    
+    response = client.post(
+        "/check-availability",
+        json={
+            "preferred_date": "2026-07-06",
+            "preferred_time": "11:00 AM",
+            "service": "Cleaning"
+        }
+    )
+    
+    assert response.status_code == 200
+    assert response.json()["available"] is True
+    assert response.json()["message"] == "Available slot"
+    mock_check_availability.assert_called_once_with(
+        preferred_date="2026-07-06",
+        preferred_time="11:00 AM",
+        service="Cleaning"
+    )

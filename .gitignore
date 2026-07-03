@@ -141,3 +141,7 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Google API credentials
+credentials.json
+

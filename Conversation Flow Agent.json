@@ -518,7 +518,7 @@
           ]
         },
         "speak_during_execution": false,
-        "url": "https://REPLACE-ME.quensultingai.example.com/check-availability"
+        "url": "https://quensultingai-voice-agent.onrender.com/check-availability"
       }
     ],
     "model_choice": {

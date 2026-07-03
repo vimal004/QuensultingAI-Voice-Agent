@@ -28,7 +28,8 @@ def test_parse_webhook_payload():
                     "Preferred Date": "2026-07-05",
                     "preferred_time": "10:00 AM",
                     "service": "Root Canal",
-                    "notes": "Has high anxiety"
+                    "notes": "Has high anxiety",
+                    "booking_successful": "True"
                 }
             }
         }
@@ -44,5 +45,23 @@ def test_parse_webhook_payload():
     assert booking.preferred_time == "10:00 AM"
     assert booking.service == "Root Canal"
     assert booking.notes == "Has high anxiety"
+    assert booking.booking_successful is True
     assert booking.call_summary == "Patient booked an appointment for root canal."
     assert booking.recording_url == "https://recording.url/99999"
+
+def test_parse_webhook_payload_unsuccessful():
+    mock_payload = {
+        "event": "call_analyzed",
+        "call": {
+            "call_id": "call_99998",
+            "from_number": "+1112223333",
+            "call_analysis": {
+                "call_summary": "Patient asked about pricing and hung up.",
+                "custom_analysis_data": {
+                    "booking_successful": "False"
+                }
+            }
+        }
+    }
+    booking = parse_webhook_payload(mock_payload)
+    assert booking.booking_successful is False

@@ -1,7 +1,7 @@
 {
   "agent_id": "",
   "channel": "voice",
-  "last_modification_timestamp": 1783068941030,
+  "last_modification_timestamp": 1783075498972,
   "agent_name": "Conversation Flow Agent",
   "response_engine": {
     "type": "conversation-flow",
@@ -64,6 +64,11 @@
       "type": "string",
       "name": "notes",
       "description": "Any symptoms, pain details, or special requests the caller mentioned. Empty if none."
+    },
+    {
+      "type": "boolean",
+      "name": "booking_successful",
+      "description": "Set to true ONLY if the caller successfully confirmed all their appointment details and agreed to submit the booking. Set to false if they only asked questions, requested a cancellation/reschedule, or hung up without confirming."
     }
   ],
   "voice_id": "retell-Cimo",
@@ -76,7 +81,7 @@
   "conversationFlow": {
     "conversation_flow_id": "conversation_flow_cf070be85198",
     "version": 0,
-    "last_modification_timestamp": 1783070971294,
+    "last_modification_timestamp": 1783075774600,
     "global_prompt": "You are a warm, empathetic, professional dental receptionist for QuensultingAI Dental Clinic. You help callers with clinic questions, new appointment requests, and reschedule or cancel requests.\n\nCurrent date and time: {{current_time}}\n\n## Response Guidelines\n- Speak conversationally and naturally. Never sound robotic.\n- Ask only ONE question per turn. Never stack multiple questions.\n- If the caller interrupts you, stop speaking immediately, listen, and respond to what they just said. Do not finish your previous sentence and do not restart the flow — resume from where you left off.\n- If the caller corrects a detail (\"actually\", \"wait\", \"change that\"), update only that specific detail and briefly re-confirm just that field.\n- If the caller asks you to repeat or says they didn't hear, repeat your last message.\n- If the caller says \"hold on\", \"one moment\", or \"please wait\", respond with exactly: NO_RESPONSE_NEEDED\n- Use natural acknowledgments such as \"Of course\", \"Sure\", \"Got it\", \"Absolutely\", \"Perfect\", \"Understood\".\n\n## Guardrails\n- Never claim an appointment is officially confirmed for a specific slot. It is always a request pending front desk confirmation.\n- Never guess or invent clinic information you were not given. If you don't know, offer to connect the caller with the front desk.\n- Do not give medical advice beyond directing emergencies to emergency care.\n- If the caller asks about something unrelated to the clinic (jokes, sports, weather, news, politics), respond briefly like: \"Ha, that's a fun one! I'm best at helping with dental appointments and clinic questions though. Is there anything I can help you with today?\" Do not engage further with the off-topic subject.\n- When reading back a phone number, state only the last four digits unless the caller explicitly asks for the full number.\n- Always end every call with: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\"",
     "nodes": [
       {
@@ -130,6 +135,14 @@
             }
           },
           {
+            "destination_node_id": "reschedule_cancel",
+            "id": "edge_faq_resched",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to reschedule, cancel, or change an existing appointment"
+            }
+          },
+          {
             "destination_node_id": "transfer_human",
             "id": "edge_faq_transfer",
             "transition_condition": {
@@ -148,13 +161,9 @@
         ],
         "id": "faq",
         "type": "conversation",
-        "display_position": {
-          "x": 1086,
-          "y": 918
-        },
         "instruction": {
           "type": "prompt",
-          "text": "Answer the caller's question using ONLY the clinic information below. Keep answers brief and natural. After answering, ask: \"Is there anything else I can help you with, or would you like to book an appointment today?\"\n\nIf the caller asks something NOT covered below, say: \"That's a great question. For that, I'd recommend speaking with our front desk team directly. Would you like me to transfer you?\"\n\nClinic information:\n- Hours: Monday to Saturday, 9:00 AM – 6:00 PM. Closed on Sundays.\n- Services: Cleaning, Whitening, Root Canal, Extraction, Cavity Filling, Braces, Veneers, Implants, General Checkup, Emergency.\n- Walk-ins: Accepted, but appointments are preferred.\n- Emergency appointments: Available same-day; the caller must call in directly.\n- Payment: Cash, card, and most major insurance providers accepted.\n- Location: Ask the caller to check the clinic website or Google Maps for the exact address.\n- Consultation fee: Starts from $50 depending on the service.\n\nDo not invent any details not listed here."
+          "text": "Answer the caller's question using ONLY the clinic information below. Keep answers brief and natural. After answering, ask: \"Is there anything else I can help you with, or would you like to book an appointment today?\"\n\nIf the caller asks something NOT covered below, say: \"That's a great question. For that, I'd recommend speaking with our front desk team directly. Would you like me to transfer you?\"\n\nClinic information:\n- Hours: Monday to Saturday, 9 AM to 6 PM. Closed on Sundays.\n- Services: Cleaning, Whitening, Root Canal, Extraction, Cavity Filling, Braces, Veneers, Implants, General Checkup, Emergency.\n- Walk-ins: Accepted, but appointments are preferred.\n- Emergency appointments: Available same-day; the caller must call in directly.\n- Payment: Cash, card, and most major insurance providers accepted.\n- Location: Ask the caller to check the clinic website or Google Maps for the exact address.\n- Consultation fee: Starts from $50 depending on the service.\n\nDo not invent any details not listed here."
         }
       },
       {
@@ -169,6 +178,14 @@
             }
           },
           {
+            "destination_node_id": "faq",
+            "id": "edge_book_faq",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller asks a general question about the clinic (such as hours, locations, payment, services, walk-ins, fees) instead of providing booking details"
+            }
+          },
+          {
             "destination_node_id": "end_call",
             "id": "edge_book_abandon",
             "transition_condition": {
@@ -178,10 +195,10 @@
           }
         ],
         "id": "collect_booking",
-        "type": "subagent",
+        "type": "conversation",
         "display_position": {
-          "x": 1614,
-          "y": 438
+          "x": 750,
+          "y": -618
         },
         "instruction": {
           "type": "prompt",
@@ -206,10 +223,30 @@
               "type": "prompt",
               "prompt": "The caller wants to change or correct one or more of the details"
             }
+          },
+          {
+            "destination_node_id": "faq",
+            "id": "edge_confirm_faq",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller asks a general clinic question during the confirmation step"
+            }
+          },
+          {
+            "destination_node_id": "reschedule_cancel",
+            "id": "edge_confirm_resched",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The caller wants to cancel or reschedule their appointment instead of confirming it"
+            }
           }
         ],
         "id": "confirm_booking",
         "type": "conversation",
+        "display_position": {
+          "x": 1470,
+          "y": 342
+        },
         "instruction": {
           "type": "prompt",
           "text": "Read back all the details you collected so the caller can confirm. Say:\n\"Let me confirm your details: Name [full name]; Service [service]; Date [preferred date]; Time [preferred time]; Phone ending in [last four digits of the phone number]; Email [email]; Notes [the notes, or 'None']. Does everything look correct?\"\n\nState ONLY the last four digits of the phone number, never the full number. Do not submit anything yourself — that happens on the next step once the caller confirms."

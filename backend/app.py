@@ -43,6 +43,14 @@ def run_booking_workflow(payload: Dict[str, Any]):
         # Parse the webhook payload into standardized BookingDetails
         booking_details = parse_webhook_payload(payload)
         
+        # Guard clause: only process booking integrations if the booking was successful
+        if not booking_details.booking_successful:
+            logger.info(
+                f"Call {booking_details.call_id} was completed without a successful booking. "
+                "Skipping Google Sheets and SMTP Email workflow."
+            )
+            return
+            
         # Execute Sheets append and Email notifications (includes retry-once logic)
         result = process_booking(booking_details)
         logger.info(f"Booking workflow successfully executed in background: {result}")

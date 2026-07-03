@@ -108,6 +108,16 @@ def parse_webhook_payload(payload: Dict[str, Any]) -> BookingDetails:
         None
     )
     
+    booking_successful_raw = extract_case_insensitive_field(
+        custom_data,
+        ["booking_successful", "booking_success", "bookingsuccessful", "success", "confirmed"],
+        False
+    )
+    if isinstance(booking_successful_raw, str):
+        booking_successful = booking_successful_raw.lower() in ("true", "1", "yes")
+    else:
+        booking_successful = bool(booking_successful_raw)
+        
     booking = BookingDetails(
         call_id=call_id,
         full_name=full_name,
@@ -117,9 +127,10 @@ def parse_webhook_payload(payload: Dict[str, Any]) -> BookingDetails:
         preferred_time=preferred_time,
         service=service,
         notes=notes,
+        booking_successful=booking_successful,
         call_summary=call_summary,
         recording_url=recording_url
     )
     
-    logger.info(f"Successfully extracted booking details for {full_name} ({phone})")
+    logger.info(f"Successfully extracted booking details for {full_name} ({phone}), booking_successful={booking_successful}")
     return booking

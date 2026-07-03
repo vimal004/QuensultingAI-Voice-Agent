@@ -28,5 +28,6 @@ class BookingDetails(BaseModel):
     preferred_time: str = Field(..., description="Preferred appointment time")
     service: str = Field(..., description="Requested service")
     notes: Optional[str] = Field(None, description="Additional notes or symptoms")
+    booking_successful: bool = Field(False, description="Whether the appointment booking was successfully completed")
     call_summary: Optional[str] = None
     recording_url: Optional[str] = None

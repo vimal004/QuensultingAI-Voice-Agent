@@ -14,6 +14,7 @@ def sample_booking():
         preferred_time="11:00 AM",
         service="Cleaning",
         notes="None",
+        booking_successful=True,
         call_summary="Jane booked a cleaning.",
         recording_url="http://recording.audio"
     )

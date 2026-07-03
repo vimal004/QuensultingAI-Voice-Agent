@@ -40,3 +40,48 @@ def test_handle_webhook_analyzed_event(mock_run_workflow, mock_verify):
     assert "Webhook received. Processing booking details" in response.json()["message"]
     # Ensure the background task was triggered
     mock_run_workflow.assert_called_once()
+
+@patch("backend.app.process_booking")
+def test_run_booking_workflow_successful(mock_process_booking):
+    from backend.app import run_booking_workflow
+    
+    mock_payload = {
+        "event": "call_analyzed",
+        "call": {
+            "call_id": "call_test_success",
+            "from_number": "+1112223333",
+            "call_analysis": {
+                "custom_analysis_data": {
+                    "Full Name": "Jane Success",
+                    "Preferred Date": "2026-07-05",
+                    "preferred_time": "10:00 AM",
+                    "service": "Root Canal",
+                    "booking_successful": "True"
+                }
+            }
+        }
+    }
+    
+    run_booking_workflow(mock_payload)
+    mock_process_booking.assert_called_once()
+
+@patch("backend.app.process_booking")
+def test_run_booking_workflow_unsuccessful(mock_process_booking):
+    from backend.app import run_booking_workflow
+    
+    mock_payload = {
+        "event": "call_analyzed",
+        "call": {
+            "call_id": "call_test_fail",
+            "from_number": "+1112223333",
+            "call_analysis": {
+                "custom_analysis_data": {
+                    "Full Name": "Jane Fail",
+                    "booking_successful": "False"
+                }
+            }
+        }
+    }
+    
+    run_booking_workflow(mock_payload)
+    mock_process_booking.assert_not_called()

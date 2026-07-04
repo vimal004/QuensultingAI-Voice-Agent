@@ -1,8 +1,4 @@
-# Key Design Decisions & Loom Talking Points
-
-Use this document as your direct script or guide for the Loom walkthrough. **Top 5 decisions are prioritized for assignment requirements and impact.**
-
----
+# Key Design Decisions 
 
 ## 1. Dual-Mode Booking Architecture (Sync vs. Async) ⭐️
 **What:** Callers choose between two confirmation flows:

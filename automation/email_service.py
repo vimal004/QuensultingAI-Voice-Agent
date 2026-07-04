@@ -51,8 +51,14 @@ def _send_email(subject: str, html_content: str, cc_address: str | None = None) 
 
     recipients = [config["to"]]
     if cc_address:
-        msg["Cc"] = cc_address
-        recipients.append(cc_address)
+        import re
+        cc_clean = cc_address.strip()
+        # Simple email structure validation to filter out non-email strings (None, N/A, not provided)
+        if re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", cc_clean):
+            msg["Cc"] = cc_clean
+            recipients.append(cc_clean)
+        else:
+            logger.warning(f"CC address '{cc_address}' is not a valid email address. Skipping CC and sending to admin only.")
 
     msg.attach(MIMEText(html_content, "html"))
 

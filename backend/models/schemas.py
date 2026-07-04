@@ -59,6 +59,9 @@ class SlotAvailabilityRequest(BaseModel):
     preferred_date: str = Field(..., description="Requested appointment date (e.g. '2026-07-10')")
     preferred_time: str = Field(..., description="Requested appointment time (e.g. '10:00 AM')")
     service: str = Field(..., description="Requested dental service")
+    is_reschedule: Optional[bool] = Field(False, description="Whether this is a reschedule request")
+    full_name: Optional[str] = Field(None, description="The name on the existing appointment to reschedule")
+    phone: Optional[str] = Field(None, description="The phone number on the existing appointment to reschedule")
 
 
 class AlternativeSlot(BaseModel):

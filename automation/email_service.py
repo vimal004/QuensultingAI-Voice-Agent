@@ -77,11 +77,15 @@ def send_booking_confirmation_email(booking_details: dict) -> bool:
     Notifies the clinic admin (EMAIL_TO) and CCs the patient if they provided an email.
     Raises exceptions directly to allow callers (like the orchestrator) to trigger retry logic.
     """
+    is_resched = booking_details.get("call_type") == "reschedule"
+    title_text = "Dental Appointment Rescheduled" if is_resched else "New Dental Appointment Booking"
+    intro_text = "Your appointment has been successfully rescheduled via the AI Receptionist at QuensultingAI Dental Clinic." if is_resched else "A new appointment has been scheduled via the AI Receptionist at QuensultingAI Dental Clinic."
+    
     html_content = f"""
     <html>
       <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <h2 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top: 0;">New Dental Appointment Booking</h2>
-        <p>A new appointment has been scheduled via the AI Receptionist at QuensultingAI Dental Clinic.</p>
+        <h2 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top: 0;">{title_text}</h2>
+        <p>{intro_text}</p>
 
         <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
           <tr>
@@ -128,7 +132,7 @@ def send_booking_confirmation_email(booking_details: dict) -> bool:
     </html>
     """
 
-    subject = f"Appointment Booked: {booking_details.get('full_name')} - {booking_details.get('preferred_date')}"
+    subject = f"Appointment Rescheduled: {booking_details.get('full_name')} - {booking_details.get('preferred_date')}" if is_resched else f"Appointment Booked: {booking_details.get('full_name')} - {booking_details.get('preferred_date')}"
     patient_email = booking_details.get('email')
 
     try:

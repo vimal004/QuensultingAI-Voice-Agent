@@ -189,6 +189,156 @@ def normalize_date(date_str: str) -> str:
             continue
     return d.lower()
 
+def normalize_phone(phone_str: str) -> str:
+    """
+    Strips non-digit characters from the phone number for consistent comparison.
+    """
+    if not phone_str:
+        return ""
+    return "".join(c for c in phone_str if c.isdigit())
+
+
+def find_booking_row_index(full_name: str, phone: str) -> Optional[int]:
+    """
+    Locates the 0-based row index (excluding header) of a patient's active booking.
+    It matches by normalized phone number or by overlap in names.
+    Skips rows marked as [CANCELLED].
+    """
+    try:
+        rows = _get_all_rows()
+    except Exception as e:
+        logger.error(f"Error fetching rows for index lookup: {e}")
+        return None
+
+    target_phone = normalize_phone(phone)
+    target_name_parts = set(full_name.lower().split()) if full_name else set()
+
+    best_match_idx = None
+    best_match_score = 0  # 3 = phone & name match, 2 = phone match, 1 = name match
+
+    for idx, row in enumerate(rows):
+        if len(row) <= COL_PHONE:
+            continue
+            
+        # Ignore cancelled bookings
+        row_service = row[COL_SERVICE] if len(row) > COL_SERVICE else ""
+        if "[CANCELLED]" in row_service:
+            continue
+
+        row_phone = normalize_phone(row[COL_PHONE]) if len(row) > COL_PHONE else ""
+        row_name = row[COL_FULL_NAME].lower() if len(row) > COL_FULL_NAME else ""
+
+        phone_matches = (target_phone and row_phone and (target_phone in row_phone or row_phone in target_phone))
+        
+        name_matches = False
+        if target_name_parts and row_name:
+            row_name_parts = set(row_name.split())
+            if target_name_parts & row_name_parts:
+                name_matches = True
+
+        score = 0
+        if phone_matches and name_matches:
+            score = 3
+        elif phone_matches:
+            score = 2
+        elif name_matches:
+            score = 1
+
+        if score > best_match_score:
+            best_match_score = score
+            best_match_idx = idx
+
+    if best_match_score >= 2 or (best_match_score == 1 and not target_phone):
+        return best_match_idx
+    return None
+
+
+def reschedule_booking_in_sheet(
+    full_name: str,
+    phone: str,
+    new_date: str,
+    new_time: str
+) -> bool:
+    """
+    Finds the active booking row for full_name/phone and updates preferred date/time.
+    Returns True if row was updated, False if target row was not found.
+    """
+    row_idx = find_booking_row_index(full_name, phone)
+    if row_idx is None:
+        logger.warning(f"Could not find existing booking to reschedule for {full_name} / {phone}.")
+        return False
+
+    spreadsheet_id = os.getenv("GOOGLE_SHEET_ID")
+    if not spreadsheet_id:
+        raise ValueError("GOOGLE_SHEET_ID environment variable is missing.")
+
+    # Sheets is 1-indexed, and rows list skips header (row 1), so row number is row_idx + 2
+    row_num = row_idx + 2
+    service = get_sheets_service()
+    
+    # We update Preferred Date (Column F / Index 5) and Preferred Time (Column G / Index 6)
+    # Range is F{row_num}:G{row_num}
+    range_name = f"Sheet1!F{row_num}:G{row_num}"
+    body = {
+        "values": [[new_date, new_time]]
+    }
+    
+    service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=range_name,
+        valueInputOption="USER_ENTERED",
+        body=body
+    ).execute()
+    
+    logger.info(f"Rescheduled row {row_num} to date={new_date}, time={new_time} for {full_name}.")
+    return True
+
+
+def cancel_booking_in_sheet(
+    full_name: str,
+    phone: str
+) -> bool:
+    """
+    Finds the active booking row for full_name/phone and prepends '[CANCELLED]' to its service.
+    Returns True if row was updated, False if not found.
+    """
+    row_idx = find_booking_row_index(full_name, phone)
+    if row_idx is None:
+        logger.warning(f"Could not find existing booking to cancel for {full_name} / {phone}.")
+        return False
+
+    spreadsheet_id = os.getenv("GOOGLE_SHEET_ID")
+    if not spreadsheet_id:
+        raise ValueError("GOOGLE_SHEET_ID environment variable is missing.")
+
+    row_num = row_idx + 2
+    service = get_sheets_service()
+    
+    # Get current row to read original service
+    result = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range=f"Sheet1!A{row_num}:K{row_num}"
+    ).execute()
+    
+    row_values = result.get("values", [])[0]
+    original_service = row_values[COL_SERVICE] if len(row_values) > COL_SERVICE else "General Consultation"
+    
+    # Update service column (Column H / Index 7)
+    range_name = f"Sheet1!H{row_num}"
+    body = {
+        "values": [[f"[CANCELLED] {original_service}"]]
+    }
+    
+    service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=range_name,
+        valueInputOption="USER_ENTERED",
+        body=body
+    ).execute()
+    
+    logger.info(f"Cancelled row {row_num} (original service: {original_service}) for {full_name}.")
+    return True
+
 
 def check_slot_availability(
     preferred_date: str,
@@ -224,6 +374,9 @@ def check_slot_availability(
     booked_slots: set[tuple[str, str]] = set()
     for row in rows:
         if len(row) > COL_TIME:
+            row_service = row[COL_SERVICE] if len(row) > COL_SERVICE else ""
+            if "[CANCELLED]" in row_service:
+                continue
             row_date = normalize_date(row[COL_DATE]) if row[COL_DATE] else ""
             row_time = normalize_time(row[COL_TIME]) if row[COL_TIME] else ""
             booked_slots.add((row_date, row_time))

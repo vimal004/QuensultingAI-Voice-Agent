@@ -134,3 +134,41 @@ def test_check_availability_endpoint(mock_check_availability):
         preferred_time="11:00 AM",
         service="Cleaning"
     )
+
+
+@patch("backend.app.reschedule_booking_in_sheet")
+@patch("backend.app.check_slot_availability")
+def test_check_availability_endpoint_reschedule_success(mock_check_availability, mock_reschedule):
+    mock_check_availability.return_value = {
+        "available": True,
+        "message": "Available slot",
+        "alternatives": []
+    }
+    mock_reschedule.return_value = True
+    
+    response = client.post(
+        "/check-availability",
+        json={
+            "preferred_date": "2026-07-06",
+            "preferred_time": "11:00 AM",
+            "service": "Cleaning",
+            "is_reschedule": True,
+            "full_name": "Alice Smith",
+            "phone": "111-2222"
+        }
+    )
+    
+    assert response.status_code == 200
+    assert response.json()["available"] is True
+    assert "successfully rescheduled" in response.json()["message"]
+    mock_check_availability.assert_called_once_with(
+        preferred_date="2026-07-06",
+        preferred_time="11:00 AM",
+        service="Cleaning"
+    )
+    mock_reschedule.assert_called_once_with(
+        full_name="Alice Smith",
+        phone="111-2222",
+        new_date="2026-07-06",
+        new_time="11:00 AM"
+    )

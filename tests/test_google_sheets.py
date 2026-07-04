@@ -52,3 +52,87 @@ def test_check_slot_availability_taken_with_alternatives(mock_get_all_rows):
     assert "9:00 AM" in alt_times
     assert "12:00 PM" in alt_times
     assert "1:00 PM" in alt_times
+
+
+@patch("automation.google_sheets._get_all_rows")
+def test_find_booking_row_index(mock_get_all_rows):
+    """
+    Test finding active booking row indices under various matching cases.
+    """
+    mock_get_all_rows.return_value = [
+        ["call_1", "now", "Alice Smith", "111-2222", "a@a.com", "2026-07-06", "10:00 AM", "Cleaning"],
+        ["call_2", "now", "Bob Jones", "333-4444", "b@b.com", "2026-07-06", "11:00 AM", "[CANCELLED] Whitening"]
+    ]
+    
+    from automation.google_sheets import find_booking_row_index
+    
+    # 1. Direct match by phone & name
+    assert find_booking_row_index("Alice Smith", "111-2222") == 0
+    # 2. Match by phone only (scoring phone match)
+    assert find_booking_row_index("Alice", "1112222") == 0
+    # 3. Match fails for cancelled row
+    assert find_booking_row_index("Bob Jones", "333-4444") is None
+    # 4. Match fails completely
+    assert find_booking_row_index("Charlie", "999-9999") is None
+
+
+@patch("automation.google_sheets.get_sheets_service")
+@patch("automation.google_sheets.find_booking_row_index")
+def test_reschedule_booking_in_sheet(mock_find_row, mock_get_service):
+    """
+    Test that rescheduling updates F and G columns of the correct row index.
+    """
+    from automation.google_sheets import reschedule_booking_in_sheet
+    
+    mock_find_row.return_value = 0 # Row index 0 in list -> Row 2 in sheet
+    mock_service = MagicMock()
+    mock_get_service.return_value = mock_service
+    
+    with patch.dict("os.environ", {"GOOGLE_SHEET_ID": "mock_sheet_id"}):
+        success = reschedule_booking_in_sheet(
+            full_name="Alice Smith",
+            phone="111-2222",
+            new_date="2026-07-15",
+            new_time="2:00 PM"
+        )
+        
+    assert success is True
+    # Row index 0 translates to Sheet Row 2. F2:G2.
+    mock_service.spreadsheets().values().update.assert_called_once_with(
+        spreadsheetId="mock_sheet_id",
+        range="Sheet1!F2:G2",
+        valueInputOption="USER_ENTERED",
+        body={"values": [["2026-07-15", "2:00 PM"]]}
+    )
+
+
+@patch("automation.google_sheets.get_sheets_service")
+@patch("automation.google_sheets.find_booking_row_index")
+def test_cancel_booking_in_sheet(mock_find_row, mock_get_service):
+    """
+    Test that cancellation prepends [CANCELLED] to the H column of the correct row index.
+    """
+    from automation.google_sheets import cancel_booking_in_sheet
+    
+    mock_find_row.return_value = 1 # Row index 1 in list -> Row 3 in sheet
+    mock_service = MagicMock()
+    mock_get_service.return_value = mock_service
+    
+    # Mock reading the original service
+    mock_get_result = {"values": [["call_2", "now", "Bob", "222", "b@b.com", "2026-07-06", "11:00 AM", "Whitening"]]}
+    mock_service.spreadsheets().values().get().execute.return_value = mock_get_result
+    
+    with patch.dict("os.environ", {"GOOGLE_SHEET_ID": "mock_sheet_id"}):
+        success = cancel_booking_in_sheet(
+            full_name="Bob Jones",
+            phone="333-4444"
+        )
+        
+    assert success is True
+    # Row index 1 translates to Sheet Row 3. H3.
+    mock_service.spreadsheets().values().update.assert_called_once_with(
+        spreadsheetId="mock_sheet_id",
+        range="Sheet1!H3",
+        valueInputOption="USER_ENTERED",
+        body={"values": [["[CANCELLED] Whitening"]]}
+    )

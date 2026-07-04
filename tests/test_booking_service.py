@@ -56,32 +56,65 @@ def test_process_booking_success(mock_send_email, mock_append_sheet, sample_book
     assert mock_append_sheet.call_count == 1
     assert mock_send_email.call_count == 1
 
-@patch("backend.services.booking_service.send_reschedule_cancel_notification_email")
-def test_process_booking_reschedule_success(mock_send_rc_email, reschedule_booking):
+@patch("backend.services.booking_service.send_booking_confirmation_email")
+def test_process_booking_reschedule_success(mock_send_confirm_email, reschedule_booking):
     """
-    Test standard reschedule processing triggers only the reschedule/cancel email alert.
+    Test standard reschedule processing triggers reschedule confirmation email.
     """
-    mock_send_rc_email.return_value = True
+    mock_send_confirm_email.return_value = True
     
     result = process_booking(reschedule_booking)
     
-    assert result["google_sheets_updated"] is False
+    assert result["google_sheets_updated"] is True
     assert result["email_notification_sent"] is True
     assert result["type"] == "reschedule"
-    assert mock_send_rc_email.call_count == 1
+    assert mock_send_confirm_email.call_count == 1
 
-@patch("backend.services.booking_service.send_reschedule_cancel_notification_email")
-def test_process_booking_reschedule_retry_once(mock_send_rc_email, reschedule_booking):
+@patch("backend.services.booking_service.send_booking_confirmation_email")
+def test_process_booking_reschedule_retry_once(mock_send_confirm_email, reschedule_booking):
     """
-    Test reschedule email alert retry-once behavior on failure.
+    Test reschedule email confirmation retry-once behavior on failure.
     """
-    mock_send_rc_email.side_effect = [RuntimeError("SMTP Timeout"), True]
+    mock_send_confirm_email.side_effect = [RuntimeError("SMTP Timeout"), True]
     
     result = process_booking(reschedule_booking)
     
-    assert result["google_sheets_updated"] is False
+    assert result["google_sheets_updated"] is True
     assert result["email_notification_sent"] is True
-    assert mock_send_rc_email.call_count == 2
+    assert mock_send_confirm_email.call_count == 2
+
+@patch("backend.services.booking_service.cancel_booking_in_sheet")
+@patch("backend.services.booking_service.send_reschedule_cancel_notification_email")
+def test_process_booking_cancel_success(mock_send_rc_email, mock_cancel_sheet):
+    """
+    Test standard cancellation processing triggers sheets cancel and email alert.
+    """
+    from backend.models.schemas import BookingDetails
+    cancel_booking = BookingDetails(
+        call_id="call_mock_cancel_123",
+        full_name="Jane Doe",
+        phone="555-0199",
+        email=None,
+        preferred_date="Not Specified",
+        preferred_time="Not Specified",
+        service="General Consultation",
+        notes=None,
+        booking_successful=False,
+        call_type="cancel",
+        reschedule_cancel_details="Jane Doe, phone 555-0199, wants to cancel",
+        call_summary="Caller wanted to cancel.",
+        recording_url="http://recording.audio"
+    )
+    mock_cancel_sheet.return_value = True
+    mock_send_rc_email.return_value = True
+    
+    result = process_booking(cancel_booking)
+    
+    assert result["google_sheets_updated"] is True
+    assert result["email_notification_sent"] is True
+    assert result["type"] == "cancel"
+    mock_cancel_sheet.assert_called_once_with("Jane Doe", "555-0199")
+    mock_send_rc_email.assert_called_once()
 
 @patch("backend.services.booking_service.append_booking_to_sheet")
 @patch("backend.services.booking_service.send_booking_confirmation_email")

@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Header, HTTPException, BackgroundTasks, st
 from fastapi.middleware.cors import CORSMiddleware
 
 from automation.webhook import verify_webhook_signature, parse_webhook_payload
-from automation.google_sheets import check_slot_availability
+from automation.google_sheets import check_slot_availability, reschedule_booking_in_sheet
 from backend.services.booking_service import process_booking
 from backend.models.schemas import SlotAvailabilityRequest, SlotAvailabilityResponse
 
@@ -86,17 +86,80 @@ async def handle_check_slot_availability(request: Request):
         preferred_time = args.get("preferred_time")
         service = args.get("service")
         
+        # Reschedule specific parameters
+        is_reschedule = args.get("is_reschedule", False)
+        if isinstance(is_reschedule, str):
+            is_reschedule = is_reschedule.lower() in ("true", "1", "yes")
+        is_reschedule = bool(is_reschedule)
+        
+        full_name = args.get("full_name")
+        phone = args.get("phone")
+        
         if not preferred_date or not preferred_time or not service:
             raise ValueError(
                 f"Missing required fields. Received preferred_date={preferred_date}, "
                 f"preferred_time={preferred_time}, service={service}"
             )
             
+        # First, check availability
         result = check_slot_availability(
             preferred_date=preferred_date,
             preferred_time=preferred_time,
             service=service
         )
+        
+        # If is_reschedule is True and the slot is available, execute reschedule in sheet
+        if is_reschedule and result.get("available"):
+            if not full_name or not phone:
+                # We need name and phone to reschedule
+                logger.warning("Reschedule requested but full_name or phone is missing.")
+                return {
+                    "available": False,
+                    "message": "I'd love to reschedule that for you, but I need your full name and phone number to update your appointment details.",
+                    "alternatives": result.get("alternatives", [])
+                }
+            
+            updated = reschedule_booking_in_sheet(
+                full_name=full_name,
+                phone=phone,
+                new_date=preferred_date,
+                new_time=preferred_time
+            )
+            
+            if updated:
+                result["message"] = (
+                    f"Perfect! I've successfully rescheduled your appointment for {service} to "
+                    f"{preferred_date} at {preferred_time}. You'll receive a confirmation email shortly."
+                )
+            else:
+                # Fallback: if row not found, append a new booking so their request is not lost
+                from automation.google_sheets import append_booking_to_sheet
+                from uuid import uuid4
+                
+                fallback_details = {
+                    "call_id": f"fallback_resched_{uuid4().hex[:8]}",
+                    "full_name": full_name,
+                    "phone": phone,
+                    "preferred_date": preferred_date,
+                    "preferred_time": preferred_time,
+                    "service": service,
+                    "notes": "[New Booking - Original not found for rescheduling]"
+                }
+                
+                try:
+                    append_booking_to_sheet(fallback_details)
+                    result["message"] = (
+                        f"I couldn't find an existing booking under {full_name}, but I've scheduled a new "
+                        f"appointment for you for {service} on {preferred_date} at {preferred_time}. "
+                        "You'll receive a confirmation email shortly."
+                    )
+                except Exception as append_err:
+                    logger.error(f"Failed to execute fallback append for rescheduling: {append_err}")
+                    result["message"] = (
+                        f"I see that slot is open, but I'm having trouble updating our database. "
+                        f"I've noted your request for {preferred_date} at {preferred_time} and will have our team update it shortly."
+                    )
+                    
         return result
     except Exception as e:
         logger.error(f"Error checking slot availability: {e}", exc_info=True)

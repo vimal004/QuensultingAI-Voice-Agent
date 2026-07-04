@@ -509,6 +509,18 @@
             "preferred_date": {
               "type": "string",
               "description": "The caller's requested appointment date."
+            },
+            "is_reschedule": {
+              "type": "boolean",
+              "description": "True if checking availability for rescheduling an existing appointment."
+            },
+            "full_name": {
+              "type": "string",
+              "description": "The full name of the patient on the existing booking (required if is_reschedule is true)."
+            },
+            "phone": {
+              "type": "string",
+              "description": "The phone number of the patient on the existing booking (required if is_reschedule is true)."
             }
           },
           "required": [

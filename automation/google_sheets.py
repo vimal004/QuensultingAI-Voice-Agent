@@ -180,14 +180,22 @@ def normalize_time(time_str: str) -> str:
 def normalize_date(date_str: str) -> str:
     """
     Normalizes date strings to YYYY-MM-DD format.
+    Handles relative terms like 'today' and 'tomorrow'.
     """
-    d = date_str.strip()
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d"):
+    from datetime import timedelta
+    d = date_str.strip().lower()
+    if d == "today":
+        return datetime.now().strftime("%Y-%m-%d")
+    elif d == "tomorrow":
+        return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    # Try parsing normal formats
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d", "%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%d %b %Y"):
         try:
-            return datetime.strptime(d, fmt).strftime("%Y-%m-%d")
+            return datetime.strptime(date_str.strip(), fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
-    return d.lower()
+    return date_str.strip()  # Fallback
 
 def normalize_phone(phone_str: str) -> str:
     """
@@ -201,7 +209,7 @@ def normalize_phone(phone_str: str) -> str:
 def find_booking_row_index(full_name: str, phone: str) -> Optional[int]:
     """
     Locates the 0-based row index (excluding header) of a patient's active booking.
-    It matches by normalized phone number or by overlap in names.
+    It matches by normalized phone number or by exact/close name match.
     Skips rows marked as [CANCELLED].
     """
     try:
@@ -211,10 +219,11 @@ def find_booking_row_index(full_name: str, phone: str) -> Optional[int]:
         return None
 
     target_phone = normalize_phone(phone)
-    target_name_parts = set(full_name.lower().split()) if full_name else set()
+    target_name = full_name.lower().strip() if full_name else ""
+    target_name_parts = set(target_name.split())
 
     best_match_idx = None
-    best_match_score = 0  # 3 = phone & name match, 2 = phone match, 1 = name match
+    best_match_score = 0.0  # 3.0 = phone & name match, 2.0 = phone match, 1.5 = name exact match, 1.0 = name significant match
 
     for idx, row in enumerate(rows):
         if len(row) <= COL_PHONE:
@@ -226,29 +235,29 @@ def find_booking_row_index(full_name: str, phone: str) -> Optional[int]:
             continue
 
         row_phone = normalize_phone(row[COL_PHONE]) if len(row) > COL_PHONE else ""
-        row_name = row[COL_FULL_NAME].lower() if len(row) > COL_FULL_NAME else ""
+        row_name = row[COL_FULL_NAME].lower().strip() if len(row) > COL_FULL_NAME else ""
+        row_name_parts = set(row_name.split())
 
-        phone_matches = (target_phone and row_phone and (target_phone in row_phone or row_phone in target_phone))
+        phone_matches = bool(target_phone and row_phone and (target_phone in row_phone or row_phone in target_phone))
         
-        name_matches = False
-        if target_name_parts and row_name:
-            row_name_parts = set(row_name.split())
-            if target_name_parts & row_name_parts:
-                name_matches = True
+        name_exact_match = bool(target_name and row_name and target_name == row_name)
+        name_significant_match = name_exact_match or (len(target_name_parts & row_name_parts) >= 2)
 
-        score = 0
-        if phone_matches and name_matches:
-            score = 3
+        score = 0.0
+        if phone_matches and name_significant_match:
+            score = 3.0
         elif phone_matches:
-            score = 2
-        elif name_matches:
-            score = 1
+            score = 2.0
+        elif name_exact_match:
+            score = 1.5
+        elif name_significant_match:
+            score = 1.0
 
         if score > best_match_score:
             best_match_score = score
             best_match_idx = idx
 
-    if best_match_score >= 2 or (best_match_score == 1 and not target_phone):
+    if best_match_score >= 1.5:
         return best_match_idx
     return None
 
@@ -360,15 +369,24 @@ def check_slot_availability(
     """
     logger.info(f"Checking slot availability for {preferred_date} at {preferred_time} ({service})")
 
+    import re
+    norm_date = normalize_date(preferred_date)
+    norm_time = normalize_time(preferred_time)
+
+    # Validate that normalized date matches YYYY-MM-DD pattern to avoid database corruption with relative dates
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", norm_date):
+        logger.warning(f"Unresolvable date format received: {preferred_date}")
+        return {
+            "available": False,
+            "message": "I'm sorry, I couldn't record that date. Could you please specify a calendar date, like next Tuesday or a specific date?",
+            "alternatives": []
+        }
+
     try:
         rows = _get_all_rows()
     except Exception as e:
         logger.error(f"Could not fetch rows from Google Sheets: {e}", exc_info=True)
         raise
-
-    # Normalise the requested slot for comparison
-    norm_date = normalize_date(preferred_date)
-    norm_time = normalize_time(preferred_time)
 
     # Collect all booked date+time pairs
     booked_slots: set[tuple[str, str]] = set()

@@ -105,7 +105,7 @@ def run_tests():
             "call_analysis": {
                 "call_summary": "Patient John Doe wants to reschedule to next week.",
                 "custom_analysis_data": {
-                    "booking_successful": "False",
+                    "booking_successful": "True",
                     "call_type": "reschedule",
                     "reschedule_cancel_details": "John Doe wants to move their 2026-07-28 10:00 AM appointment to 2026-08-04 10:00 AM."
                 }
@@ -129,7 +129,7 @@ def run_tests():
             "call_analysis": {
                 "call_summary": "Patient John Doe wants to cancel their appointment.",
                 "custom_analysis_data": {
-                    "booking_successful": "False",
+                    "booking_successful": "True",
                     "call_type": "cancel",
                     "reschedule_cancel_details": "John Doe wants to cancel their appointment on 2026-07-28."
                 }

@@ -66,17 +66,39 @@ def test_run_booking_workflow_successful(mock_process_booking):
     mock_process_booking.assert_called_once()
 
 @patch("backend.app.process_booking")
-def test_run_booking_workflow_reschedule(mock_process_booking):
+def test_run_booking_workflow_reschedule_unconfirmed(mock_process_booking):
     from backend.app import run_booking_workflow
     
     mock_payload = {
         "event": "call_analyzed",
         "call": {
-            "call_id": "call_test_resched",
+            "call_id": "call_test_resched_fail",
             "from_number": "+1112223333",
             "call_analysis": {
                 "custom_analysis_data": {
                     "booking_successful": "False",
+                    "call_type": "reschedule",
+                    "reschedule_cancel_details": "Jane Smith, 555-1212"
+                }
+            }
+        }
+    }
+    
+    run_booking_workflow(mock_payload)
+    mock_process_booking.assert_not_called()
+
+@patch("backend.app.process_booking")
+def test_run_booking_workflow_reschedule_confirmed(mock_process_booking):
+    from backend.app import run_booking_workflow
+    
+    mock_payload = {
+        "event": "call_analyzed",
+        "call": {
+            "call_id": "call_test_resched_success",
+            "from_number": "+1112223333",
+            "call_analysis": {
+                "custom_analysis_data": {
+                    "booking_successful": "True",
                     "call_type": "reschedule",
                     "reschedule_cancel_details": "Jane Smith, 555-1212"
                 }
@@ -160,15 +182,11 @@ def test_check_availability_endpoint_reschedule_success(mock_check_availability,
     
     assert response.status_code == 200
     assert response.json()["available"] is True
-    assert "successfully rescheduled" in response.json()["message"]
+    assert "available for rescheduling" in response.json()["message"]
     mock_check_availability.assert_called_once_with(
         preferred_date="2026-07-06",
         preferred_time="11:00 AM",
         service="Cleaning"
     )
-    mock_reschedule.assert_called_once_with(
-        full_name="Alice Smith",
-        phone="111-2222",
-        new_date="2026-07-06",
-        new_time="11:00 AM"
-    )
+    # Ensure reschedule in sheet is NOT called during availability checks
+    mock_reschedule.assert_not_called()

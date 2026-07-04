@@ -45,12 +45,11 @@ def run_booking_workflow(payload: Dict[str, Any]):
         # Parse the webhook payload into standardized BookingDetails
         booking_details = parse_webhook_payload(payload)
         
-        # Guard clause: only process if the booking was successful OR it's a reschedule/cancel request
-        is_reschedule_or_cancel = booking_details.call_type in ["reschedule", "cancel"]
-        if not booking_details.booking_successful and not is_reschedule_or_cancel:
+        # Guard clause: only process if the caller successfully confirmed
+        if not booking_details.booking_successful:
             logger.info(
                 f"Call {booking_details.call_id} (type: {booking_details.call_type}) was completed "
-                "without a successful booking or reschedule/cancel request. Skipping integrations."
+                f"without successful confirmation (booking_successful is False). Skipping integrations."
             )
             return
             
@@ -95,10 +94,10 @@ async def handle_check_slot_availability(request: Request):
         full_name = args.get("full_name")
         phone = args.get("phone")
         
-        if not preferred_date or not preferred_time or not service:
+        if not preferred_date or not preferred_time:
             raise ValueError(
                 f"Missing required fields. Received preferred_date={preferred_date}, "
-                f"preferred_time={preferred_time}, service={service}"
+                f"preferred_time={preferred_time}"
             )
             
         # First, check availability
@@ -108,57 +107,12 @@ async def handle_check_slot_availability(request: Request):
             service=service
         )
         
-        # If is_reschedule is True and the slot is available, execute reschedule in sheet
+        # Custom message if it is a reschedule check (decoupled from direct sheet updates)
         if is_reschedule and result.get("available"):
-            if not full_name or not phone:
-                # We need name and phone to reschedule
-                logger.warning("Reschedule requested but full_name or phone is missing.")
-                return {
-                    "available": False,
-                    "message": "I'd love to reschedule that for you, but I need your full name and phone number to update your appointment details.",
-                    "alternatives": result.get("alternatives", [])
-                }
-            
-            updated = reschedule_booking_in_sheet(
-                full_name=full_name,
-                phone=phone,
-                new_date=preferred_date,
-                new_time=preferred_time
+            result["message"] = (
+                f"Great news! The slot on {preferred_date} at {preferred_time} is available for rescheduling. "
+                "Shall I go ahead and confirm this change for you?"
             )
-            
-            if updated:
-                result["message"] = (
-                    f"Perfect! I've successfully rescheduled your appointment for {service} to "
-                    f"{preferred_date} at {preferred_time}. You'll receive a confirmation email shortly."
-                )
-            else:
-                # Fallback: if row not found, append a new booking so their request is not lost
-                from automation.google_sheets import append_booking_to_sheet
-                from uuid import uuid4
-                
-                fallback_details = {
-                    "call_id": f"fallback_resched_{uuid4().hex[:8]}",
-                    "full_name": full_name,
-                    "phone": phone,
-                    "preferred_date": preferred_date,
-                    "preferred_time": preferred_time,
-                    "service": service,
-                    "notes": "[New Booking - Original not found for rescheduling]"
-                }
-                
-                try:
-                    append_booking_to_sheet(fallback_details)
-                    result["message"] = (
-                        f"I couldn't find an existing booking under {full_name}, but I've scheduled a new "
-                        f"appointment for you for {service} on {preferred_date} at {preferred_time}. "
-                        "You'll receive a confirmation email shortly."
-                    )
-                except Exception as append_err:
-                    logger.error(f"Failed to execute fallback append for rescheduling: {append_err}")
-                    result["message"] = (
-                        f"I see that slot is open, but I'm having trouble updating our database. "
-                        f"I've noted your request for {preferred_date} at {preferred_time} and will have our team update it shortly."
-                    )
                     
         return result
     except Exception as e:

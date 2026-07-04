@@ -1,6 +1,6 @@
 # Key Design Decisions 
 
-## 1. Dual-Mode Booking Architecture (Sync vs. Async) ⭐️
+## 1. Dual-Mode Booking Architecture (Sync vs. Async)
 **What:** Callers choose between two confirmation flows:
 - **Sync (Live Check):** During the call, Retell triggers a `/check-availability` tool call to query Google Sheets and check for slot conflicts in real-time. If taken, it calculates and offers up to 3 same-day alternatives.
 - **Async (Flexible):** For callers in a rush, details are collected, the call ends immediately, and scheduling runs post-call via the webhook.

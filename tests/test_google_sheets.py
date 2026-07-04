@@ -136,3 +136,97 @@ def test_cancel_booking_in_sheet(mock_find_row, mock_get_service):
         valueInputOption="USER_ENTERED",
         body={"values": [["[CANCELLED] Whitening"]]}
     )
+
+
+@patch("automation.google_sheets._get_all_rows")
+def test_check_slot_availability_sunday(mock_get_all_rows):
+    """
+    Test checking a slot on a Sunday. Should be rejected.
+    """
+    mock_get_all_rows.return_value = []
+    
+    # 2026-07-05 is a Sunday
+    result = check_slot_availability(
+        preferred_date="2026-07-05",
+        preferred_time="10:00 AM",
+        service="Cleaning"
+    )
+    
+    assert result["available"] is False
+    assert "clinic is closed on Sundays" in result["message"]
+
+
+@patch("automation.google_sheets._get_all_rows")
+def test_check_slot_availability_outside_operating_hours(mock_get_all_rows):
+    """
+    Test checking a slot outside clinic operating hours (e.g. 8:00 AM or 7:00 PM). Should be rejected.
+    """
+    mock_get_all_rows.return_value = []
+    
+    # Before 9:00 AM
+    result_early = check_slot_availability(
+        preferred_date="2026-07-06",
+        preferred_time="8:00 AM",
+        service="Cleaning"
+    )
+    assert result_early["available"] is False
+    assert "outside our clinic hours" in result_early["message"]
+
+    # After 6:00 PM (18:00)
+    result_late = check_slot_availability(
+        preferred_date="2026-07-06",
+        preferred_time="7:00 PM",
+        service="Cleaning"
+    )
+    assert result_late["available"] is False
+    assert "outside our clinic hours" in result_late["message"]
+
+
+@patch("automation.google_sheets.find_booking_row_index")
+@patch("automation.google_sheets._get_all_rows")
+def test_check_slot_availability_reschedule_not_found(mock_get_all_rows, mock_find_row):
+    """
+    Test rescheduling when the existing booking is not found in sheets. Should be rejected.
+    """
+    mock_find_row.return_value = None
+    mock_get_all_rows.return_value = []
+    
+    result = check_slot_availability(
+        preferred_date="2026-07-06",
+        preferred_time="10:00 AM",
+        service="Cleaning",
+        is_reschedule=True,
+        full_name="No Booking Patient",
+        phone="555-9999"
+    )
+    
+    assert result["available"] is False
+    assert "couldn't find an existing appointment" in result["message"]
+
+
+@patch("automation.google_sheets.find_booking_row_index")
+@patch("automation.google_sheets._get_all_rows")
+def test_check_slot_availability_reschedule_excludes_self(mock_get_all_rows, mock_find_row):
+    """
+    Test rescheduling when the new slot conflicts with another booking, 
+    but does NOT conflict with the patient's own slot being rescheduled.
+    """
+    # Let's say Alice currently has a booking at 10:00 AM.
+    # She wants to reschedule to 10:00 AM.
+    # This should be available since she is the one occupying it.
+    mock_find_row.return_value = 0 # Index 0 is Alice
+    mock_get_all_rows.return_value = [
+        ["call_1", "now", "Alice Smith", "111-2222", "a@a.com", "2026-07-06", "10:00 AM", "Cleaning"]
+    ]
+    
+    result = check_slot_availability(
+        preferred_date="2026-07-06",
+        preferred_time="10:00 AM",
+        service="Cleaning",
+        is_reschedule=True,
+        full_name="Alice Smith",
+        phone="111-2222"
+    )
+    
+    assert result["available"] is True
+    assert "available for rescheduling" in result["message"]

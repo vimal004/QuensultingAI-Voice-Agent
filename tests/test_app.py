@@ -154,7 +154,10 @@ def test_check_availability_endpoint(mock_check_availability):
     mock_check_availability.assert_called_once_with(
         preferred_date="2026-07-06",
         preferred_time="11:00 AM",
-        service="Cleaning"
+        service="Cleaning",
+        is_reschedule=False,
+        full_name=None,
+        phone=None
     )
 
 
@@ -186,7 +189,10 @@ def test_check_availability_endpoint_reschedule_success(mock_check_availability,
     mock_check_availability.assert_called_once_with(
         preferred_date="2026-07-06",
         preferred_time="11:00 AM",
-        service="Cleaning"
+        service="Cleaning",
+        is_reschedule=True,
+        full_name="Alice Smith",
+        phone="111-2222"
     )
     # Ensure reschedule in sheet is NOT called during availability checks
     mock_reschedule.assert_not_called()

@@ -104,7 +104,10 @@ async def handle_check_slot_availability(request: Request):
         result = check_slot_availability(
             preferred_date=preferred_date,
             preferred_time=preferred_time,
-            service=service
+            service=service,
+            is_reschedule=is_reschedule,
+            full_name=full_name,
+            phone=phone
         )
         
         # Custom message if it is a reschedule check (decoupled from direct sheet updates)

@@ -353,25 +353,48 @@ def check_slot_availability(
     preferred_date: str,
     preferred_time: str,
     service: str,
+    is_reschedule: bool = False,
+    full_name: Optional[str] = None,
+    phone: Optional[str] = None,
 ) -> dict:
     """
     Checks Google Sheets for existing bookings at the requested date/time/service combination.
+    Enforces clinic operating hours/days and verifies existing appointments for reschedules.
 
     Logic:
     - Normalises date and time strings for comparison (case-insensitive, strip whitespace).
+    - Rejects Sunday appointments.
+    - Rejects appointments outside clinic hours (9:00 AM – 6:00 PM).
+    - If is_reschedule is True, verifies that the existing booking exists. Excludes this row
+      from the conflict check so the patient does not conflict with their own slot.
     - A slot is considered TAKEN if any existing row has the same preferred_date AND preferred_time.
-      (We don't enforce per-service limits; the clinic controls capacity via the front desk.)
-    - If the exact slot is taken, returns up to 3 alternative slots on the same date at
-      different hours within clinic hours (9 AM – 6 PM, on the hour), or the next available
-      business day if the same-day alternatives are exhausted.
-
-    Returns a dict matching SlotAvailabilityResponse schema.
+    - If the exact slot is taken, returns up to 3 alternative slots on the same date.
     """
-    logger.info(f"Checking slot availability for {preferred_date} at {preferred_time} ({service})")
+    logger.info(f"Checking slot availability for {preferred_date} at {preferred_time} ({service}), is_reschedule={is_reschedule}")
 
     import re
     norm_date = normalize_date(preferred_date)
     norm_time = normalize_time(preferred_time)
+
+    # 1. Enforce operating days (Monday - Saturday)
+    try:
+        dt = datetime.strptime(norm_date, "%Y-%m-%d")
+        if dt.weekday() == 6:  # 6 is Sunday
+            return {
+                "available": False,
+                "message": "I'm sorry, our clinic is closed on Sundays. Please select a day from Monday to Saturday.",
+                "alternatives": []
+            }
+    except Exception:
+        pass
+
+    # 2. Enforce operating hours (9:00 AM - 6:00 PM)
+    if norm_time < "09:00" or norm_time > "18:00":
+        return {
+            "available": False,
+            "message": "I'm sorry, that time is outside our clinic hours of 9:00 AM to 6:00 PM. Please select a time within those hours.",
+            "alternatives": []
+        }
 
     # Validate that normalized date matches YYYY-MM-DD pattern to avoid database corruption with relative dates
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", norm_date):
@@ -382,6 +405,18 @@ def check_slot_availability(
             "alternatives": []
         }
 
+    # 3. For reschedule requests, verify the patient has an active existing appointment
+    exclude_row_idx = None
+    if is_reschedule and full_name and phone:
+        exclude_row_idx = find_booking_row_index(full_name, phone)
+        if exclude_row_idx is None:
+            clean_phone = phone[-4:] if phone and len(phone) >= 4 else phone
+            return {
+                "available": False,
+                "message": f"I'm sorry, I couldn't find an existing appointment for {full_name} with phone number ending in {clean_phone}. Could you verify your details, or would you like to book a new appointment instead?",
+                "alternatives": []
+            }
+
     try:
         rows = _get_all_rows()
     except Exception as e:
@@ -390,7 +425,11 @@ def check_slot_availability(
 
     # Collect all booked date+time pairs
     booked_slots: set[tuple[str, str]] = set()
-    for row in rows:
+    for idx, row in enumerate(rows):
+        # Exclude the reschedule target's existing booking from causing a conflict with itself
+        if exclude_row_idx is not None and idx == exclude_row_idx:
+            continue
+
         if len(row) > COL_TIME:
             row_service = row[COL_SERVICE] if len(row) > COL_SERVICE else ""
             if "[CANCELLED]" in row_service:
@@ -402,9 +441,12 @@ def check_slot_availability(
     # Check exact slot
     if (norm_date, norm_time) not in booked_slots:
         logger.info(f"Slot is AVAILABLE: {preferred_date} at {preferred_time}")
+        success_msg = f"That slot is available! Your appointment for {service} on {preferred_date} at {preferred_time} is confirmed."
+        if is_reschedule:
+            success_msg = f"Great news! The slot on {preferred_date} at {preferred_time} is available for rescheduling. Shall I go ahead and confirm this change for you?"
         return {
             "available": True,
-            "message": f"That slot is available! Your appointment for {service} on {preferred_date} at {preferred_time} is confirmed.",
+            "message": success_msg,
             "alternatives": []
         }
 

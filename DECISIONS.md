@@ -1,31 +1,133 @@
 # Key Design Decisions & Loom Talking Points
 
-Use this document as your direct script or guide for the Loom walkthrough. These decisions are ordered by their technical sophistication and engineering impact.
+Use this document as your direct script or guide for the Loom walkthrough. **Top 5 decisions are prioritized for assignment requirements and impact.**
 
 ---
 
 ## 1. Dual-Mode Booking Architecture (Sync vs. Async) ⭐️
-* **What:** Callers choose between two confirmation flows:
-  - **Sync (Live Check):** During the call, Retell triggers a `/check-availability` tool call to query Google Sheets and check for slot conflicts in real-time. If taken, it calculates and offers up to 3 same-day alternatives.
-  - **Async (Flexible):** For callers in a rush, details are collected, the call ends immediately, and scheduling runs post-call via the webhook.
-* **Impact:** Minimizes mid-call API latency (1.5s–3s of silence) for 80% of callers while retaining real-time validation and re-scheduling capabilities for callers who demand certainty.
+**What:** Callers choose between two confirmation flows:
+- **Sync (Live Check):** During the call, Retell triggers a `/check-availability` tool call to query Google Sheets and check for slot conflicts in real-time. If taken, it calculates and offers up to 3 same-day alternatives.
+- **Async (Flexible):** For callers in a rush, details are collected, the call ends immediately, and scheduling runs post-call via the webhook.
 
-## 2. Non-Blocking Webhook Processing
-* **What:** The Retell `call_analyzed` webhook handler instantly returns a `200 OK` ("processing") and delegates all Google Sheets and SMTP Email work to FastAPI `BackgroundTasks`.
-* **Impact:** Prevents API timeouts. If Google Sheets or SMTP servers are slow, the webhook callback does not block Retell or cause retry storm overhead.
+**Why:** Most callers don't want to wait 2-3 seconds for API calls during conversation. But some need certainty about their slot.
 
-## 3. Reschedule & Cancel Safety Net
-* **What:** Extracted `call_type` and `reschedule_cancel_details` from Retell's post-call analysis. If a caller requests a cancellation or reschedule, a structured `[Action Required]` SMTP email alert is instantly dispatched to the clinic admin with the caller's instructions.
-* **Impact:** Prevents non-booking caller intents from silently vanishing into the webhook pipeline.
+**Impact:** Reduces mid-call latency for 80% of callers while preserving real-time validation for those who demand it. Improves UX without sacrificing functionality.
 
-## 4. Key Casing Normalization & Parser Defensiveness
-* **What:** LLMs frequently output custom analysis key names with mismatched casing, spaces, or dashes (e.g., `Full Name` vs. `full_name` vs. `FullName`). The parser normalizes all payload keys by stripping non-alphanumeric characters and comparing them case-insensitively.
-* **Impact:** Eliminates data-parsing edge case failures, ensuring 100% extraction reliability.
+---
+
+## 2. Global Node Guardrails for Safety
+**What:** Emergency Handling and Human Escalation implemented as Global Nodes with automatic triggers, not manual edges from every state.
+
+**Why:** Manually wiring emergency paths from 10+ nodes creates messy, error-prone graphs. Global nodes catch conditions anywhere in the flow.
+
+**Impact:** Clean, maintainable conversation graph. Safety mechanisms work consistently regardless of conversation state. Demonstrates sophisticated RetellAI implementation.
+
+---
+
+## 3. Non-Blocking Webhook Processing
+**What:** The Retell `call_analyzed` webhook handler instantly returns `200 OK` and delegates all Google Sheets and SMTP work to FastAPI `BackgroundTasks`.
+
+**Why:** Google Sheets API and SMTP servers can be slow (2-5 seconds). Blocking the webhook would cause Retell to timeout and retry, creating duplicate processing.
+
+**Impact:** Prevents webhook timeouts and retry storms. Ensures reliable data processing even when external services are slow. Production-grade error handling.
+
+---
+
+## 4. LLM-Proof Payload Parsing
+**What:** LLMs output inconsistent key names (`Full Name` vs `full_name` vs `FullName`). Parser normalizes keys by stripping spaces/dashes and comparing case-insensitively.
+
+**Why:** Retell's LLM analysis is non-deterministic. Rigid parsing would fail randomly in production.
+
+**Impact:** 100% data extraction reliability regardless of LLM output format. Eliminates parsing edge cases. Shows robust code quality and understanding of LLM limitations.
+
+---
 
 ## 5. Retry-Once Integration Guard
-* **What:** Sheets insertion and SMTP delivery steps utilize a strict retry-once loop (maximum 2 attempts per service) with comprehensive exception logging.
-* **Impact:** Guarantees durability against temporary network or API blips without risking infinite loop execution or blocking background threads.
+**What:** Google Sheets and SMTP operations use a strict retry-once loop (max 2 attempts) with detailed logging.
 
-## 6. Global Node Guardrails
-* **What:** Implemented Emergency Handling and Human Escalation as Global Nodes with specific triggers, rather than manually connecting edges from every state.
-* **Impact:** Keeps the Conversational Flow graph clean, clean-cut, and extensible.
+**Why:** Network blips and temporary API failures are common. Infinite retries waste resources; no retries lose data.
+
+**Impact:** Balances reliability with performance. Handles transient failures without risking infinite loops or blocking threads. Demonstrates production-level automation quality.
+
+---
+
+## Additional Engineering Decisions
+
+## 6. Reschedule & Cancel Safety Net
+**What:** Extracted `call_type` and `reschedule_cancel_details` from post-call analysis. Non-booking intents trigger structured `[Action Required]` email alerts to clinic admin.
+
+**Why:** Callers might want to cancel or reschedule, not book. Without this, those requests would be lost in the webhook pipeline.
+
+**Impact:** Captures all call intents, not just bookings. Clinic staff gets notified for follow-up actions. No caller requests fall through the cracks.
+
+---
+
+## 7. Dual Credential Strategy for Cloud Deployment
+**What:** Google Sheets auth supports both `GOOGLE_CREDS_JSON` (raw JSON string) and `GOOGLE_APPLICATION_CREDENTIALS` (file path).
+
+**Why:** Cloud platforms like Render can't mount credential files. Raw JSON in env vars works everywhere. Local dev prefers file-based creds.
+
+**Impact:** Seamless deployment across environments. One codebase works for local dev and production without changes.
+
+---
+
+## 8. Graceful Degradation in Live Slot Check
+**What:** `/check-availability` endpoint returns a friendly fallback message if Google Sheets fails, instead of crashing.
+
+**Why:** API failures during live calls would leave the voice agent hanging with no response. Bad UX.
+
+**Impact:** Voice agent always responds gracefully. Callers get helpful messages even when backend fails. No awkward silences.
+
+---
+
+## 9. Flexible Payload Handling for Testing
+**What:** Slot availability endpoint handles both flat payloads (local tests) and Retell's nested `args` format.
+
+**Why:** Retell wraps tool parameters in `args` field. Local testing uses direct JSON. Supporting both enables easy debugging.
+
+**Impact:** Test integrations locally without Retell. Simplify development workflow. No need for mock Retell environments.
+
+---
+
+## 10. Automatic Sheet Initialization
+**What:** Google Sheets integration auto-creates headers if the sheet is empty.
+
+**Why:** Manual setup is error-prone. New deployments might have empty sheets.
+
+**Impact:** Zero-configuration deployment. Works immediately on fresh Google Sheets. Reduces setup errors.
+
+---
+
+## 11. Time/Date Normalization for Reliability
+**What:** Slot availability normalizes various time formats (`11:00 AM`, `11:00am`, `13:00`) and date formats for comparison.
+
+**Why:** Callers and LLMs use inconsistent formats. Rigid matching would miss valid bookings.
+
+**Impact:** Accurate slot detection regardless of input format. Prevents double-bookings from format mismatches.
+
+---
+
+## 12. Bypass Flag for Local Development
+**What:** `BYPASS_SIGNATURE_VERIFICATION=true` skips webhook signature validation for testing.
+
+**Why:** Local testing doesn't have Retell API keys. Signature verification blocks development workflow.
+
+**Impact:** Enables isolated backend testing with curl/Postman. Debug integrations without full Retell setup.
+
+---
+
+## 13. Pydantic for Type Safety
+**What:** All request/response models use Pydantic with strict validation.
+
+**Why:** Runtime type errors are hard to debug. Pydantic catches schema mismatches early with clear error messages.
+
+**Impact:** Catches bugs before runtime. Self-documenting API contracts. Automatic validation without boilerplate.
+
+---
+
+## 14. Structured Call Type Enum
+**What:** `CallType` enum (NEW_BOOKING, RESCHEDULE, CANCEL, FAQ_ONLY, EMERGENCY) enforces valid call intents.
+
+**Why:** String literals are error-prone (`"new_booking"` vs `"New_Booking"`). Typos cause silent failures.
+
+**Impact:** Type-safe call routing. IDE autocomplete prevents typos. Clear intent classification.

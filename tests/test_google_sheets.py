@@ -230,3 +230,19 @@ def test_check_slot_availability_reschedule_excludes_self(mock_get_all_rows, moc
     
     assert result["available"] is True
     assert "available for rescheduling" in result["message"]
+
+def test_normalize_date():
+    from automation.google_sheets import normalize_date
+    from datetime import datetime
+    
+    current_year = datetime.now().year
+    
+    assert normalize_date("July 6") == f"{current_year}-07-06"
+    assert normalize_date("July 6th") == f"{current_year}-07-06"
+    assert normalize_date("6th July") == f"{current_year}-07-06"
+    assert normalize_date("6th of July") == f"{current_year}-07-06"
+    assert normalize_date("july 6, 2026") == "2026-07-06"
+    assert normalize_date("Jul 6") == f"{current_year}-07-06"
+    assert normalize_date("6 Jul") == f"{current_year}-07-06"
+    assert normalize_date("2026-07-06") == "2026-07-06"
+    assert normalize_date("today") == datetime.now().strftime("%Y-%m-%d")

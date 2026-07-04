@@ -190,20 +190,72 @@ def normalize_date(date_str: str) -> str:
     """
     Normalizes date strings to YYYY-MM-DD format.
     Handles relative terms like 'today' and 'tomorrow'.
+    Supports dates with or without years, ordinal suffixes, and prepended/appended 'of'.
     """
+    import re
     from datetime import timedelta
     d = date_str.strip().lower()
+    
+    # Collapse multiple spaces
+    d = re.sub(r"\s+", " ", d)
+    
     if d == "today":
         return datetime.now().strftime("%Y-%m-%d")
     elif d == "tomorrow":
         return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        
+    # Pre-process cleaning:
+    # 1. Strip 'of' (e.g., '6th of July' -> '6th July')
+    d = re.sub(r"\bof\b", "", d)
+    d = re.sub(r"\s+", " ", d).strip()
     
-    # Try parsing normal formats
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d", "%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%d %b %Y"):
+    # 2. Strip ordinal suffixes from numbers (e.g., '6th' -> '6', '1st' -> '1')
+    d = re.sub(r"(\d+)(st|nd|rd|th)\b", r"\1", d)
+    d = d.strip()
+    
+    # Try parsing formats with year first
+    formats_with_year = (
+        "%Y-%m-%d",
+        "%m/%d/%Y",
+        "%d/%m/%Y",
+        "%Y/%m/%d",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%B %d %Y",
+        "%b %d %Y",
+        "%d %B %Y",
+        "%d %b %Y",
+        "%B %d, %y",
+        "%b %d, %y",
+        "%B %d %y",
+        "%b %d %y",
+        "%d %B %y",
+        "%d %b %y"
+    )
+    
+    for fmt in formats_with_year:
         try:
-            return datetime.strptime(date_str.strip(), fmt).strftime("%Y-%m-%d")
+            return datetime.strptime(d, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
+            
+    # If parsing with year failed, try appending current year to handle month+day only
+    current_year = datetime.now().year
+    d_with_year = f"{d} {current_year}"
+    
+    formats_no_year = (
+        "%B %d %Y",
+        "%b %d %Y",
+        "%d %B %Y",
+        "%d %b %Y"
+    )
+    
+    for fmt in formats_no_year:
+        try:
+            return datetime.strptime(d_with_year, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+            
     return date_str.strip()  # Fallback
 
 def normalize_phone(phone_str: str) -> str:

@@ -307,7 +307,7 @@
         "name": "Transfer to Front Desk",
         "transfer_destination": {
           "type": "predefined",
-          "number": "+917603832537"
+          "number": "YOUR_PHONE_NUMBER_HERE"
         },
         "edge": {
           "destination_node_id": "transfer_failed",
@@ -518,7 +518,7 @@
           ]
         },
         "speak_during_execution": false,
-        "url": "https://quensultingai-voice-agent.onrender.com/check-availability"
+        "url": "YOUR_BACKEND_URL/check-availability"
       }
     ],
     "model_choice": {

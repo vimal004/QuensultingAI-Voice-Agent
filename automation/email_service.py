@@ -38,10 +38,90 @@ def _get_smtp_config() -> dict:
     }
 
 
+def _send_via_resend(subject: str, html_content: str, to_address: str, cc_address: str | None = None) -> bool:
+    import httpx
+    import re
+    api_key = os.getenv("RESEND_API_KEY")
+    email_from = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "from": email_from,
+        "to": [to_address],
+        "subject": subject,
+        "html": html_content
+    }
+    if cc_address:
+        cc_clean = cc_address.strip()
+        if re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", cc_clean):
+            payload["cc"] = [cc_clean]
+
+    logger.info(f"Sending email via Resend API to {to_address}...")
+    response = httpx.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=10.0)
+    
+    if response.status_code in (200, 201, 202):
+        logger.info("Email successfully sent via Resend API.")
+        return True
+    else:
+        logger.error(f"Resend API error: {response.status_code} - {response.text}")
+        raise RuntimeError(f"Resend API failed: {response.text}")
+
+
+def _send_via_brevo(subject: str, html_content: str, to_address: str, cc_address: str | None = None) -> bool:
+    import httpx
+    import re
+    api_key = os.getenv("BREVO_API_KEY")
+    email_from = os.getenv("EMAIL_FROM")
+    
+    if not email_from:
+        raise ValueError("EMAIL_FROM is required for Brevo API.")
+        
+    headers = {
+        "api-key": api_key,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "sender": {"email": email_from},
+        "to": [{"email": to_address}],
+        "subject": subject,
+        "htmlContent": html_content
+    }
+    if cc_address:
+        cc_clean = cc_address.strip()
+        if re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", cc_clean):
+            payload["cc"] = [{"email": cc_clean}]
+
+    logger.info(f"Sending email via Brevo API to {to_address}...")
+    response = httpx.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers, timeout=10.0)
+    
+    if response.status_code in (200, 201, 202):
+        logger.info("Email successfully sent via Brevo API.")
+        return True
+    else:
+        logger.error(f"Brevo API error: {response.status_code} - {response.text}")
+        raise RuntimeError(f"Brevo API failed: {response.text}")
+
+
 def _send_email(subject: str, html_content: str, cc_address: str | None = None) -> bool:
     """
-    Core SMTP send helper. Raises on failure so callers can apply retry logic.
+    Sends email. Automatically detects whether to use Resend, Brevo, or fallback to SMTP.
     """
+    resend_key = os.getenv("RESEND_API_KEY")
+    brevo_key = os.getenv("BREVO_API_KEY")
+    email_to = os.getenv("EMAIL_TO")
+    
+    if not email_to:
+        raise ValueError("EMAIL_TO environment variable is missing.")
+        
+    if resend_key:
+        return _send_via_resend(subject, html_content, email_to, cc_address)
+    elif brevo_key:
+        return _send_via_brevo(subject, html_content, email_to, cc_address)
+
+    # Fallback to SMTP
     config = _get_smtp_config()
 
     msg = MIMEMultipart("alternative")

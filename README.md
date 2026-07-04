@@ -14,7 +14,9 @@ This voice agent handles inbound calls for a dental clinic, capable of:
 
 ## 🚀 Live Backend
 
-The backend API is hosted on Render: **https://quensultingai-voice-agent.onrender.com**
+The backend API is hosted on Render with personal credentials: **https://quensultingai-voice-agent.onrender.com**
+
+**Important:** The hosted instance uses personal credentials for Google Sheets and SMTP email integration. These are configured as environment variables in the Render dashboard and are not exposed in the codebase.
 
 - **Health Check:** https://quensultingai-voice-agent.onrender.com/health
 - **Slot Availability:** https://quensultingai-voice-agent.onrender.com/check-availability
@@ -204,6 +206,7 @@ QuensultingAI-Voice-Agent/
 
 ## 🧪 Testing
 
+### Unit Tests
 Run the test suite:
 ```bash
 pytest tests/ -v
@@ -214,6 +217,31 @@ Run specific test files:
 pytest tests/test_booking_service.py -v
 pytest tests/test_google_sheets.py -v
 ```
+
+### Integration Testing (Isolated Backend Testing)
+
+The backend is hosted on Render with personal credentials for Google Sheets and SMTP. To test the FastAPI backend integrations (email sending, Google Sheets operations) in isolation without going through RetellAI:
+
+**Set the bypass flag in your environment:**
+```env
+BYPASS_SIGNATURE_VERIFICATION=true
+```
+
+This allows you to:
+- Test the `/webhook/retell` endpoint directly with curl/Postman
+- Test Google Sheets integration without RetellAI signature verification
+- Test email sending without going through the full voice flow
+- Debug integration issues in isolation
+
+**Example webhook test:**
+```bash
+# With BYPASS_SIGNATURE_VERIFICATION=true
+curl -X POST http://localhost:8000/webhook/retell \
+  -H "Content-Type: application/json" \
+  -d @test-webhook-payload.json
+```
+
+**Note:** The bypass flag is automatically enabled if `RETELL_API_KEY` is not set (useful for local development).
 
 ## 📊 Conversation Flow
 

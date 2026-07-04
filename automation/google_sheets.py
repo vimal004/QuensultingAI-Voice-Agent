@@ -21,12 +21,20 @@ COL_TIME = 6
 COL_SERVICE = 7
 
 
+# Global cache for the Google Sheets API service client to avoid discovery overhead
+_sheets_service_cache = None
+
+
 def get_sheets_service() -> Any:
     """
     Authenticates and returns the Google Sheets API v4 service.
     First tries loading service account credentials from GOOGLE_CREDS_JSON env var (raw JSON),
     then falls back to the file specified in GOOGLE_APPLICATION_CREDENTIALS.
     """
+    global _sheets_service_cache
+    if _sheets_service_cache is not None:
+        return _sheets_service_cache
+
     creds = None
 
     # Method A: Try raw JSON string from environment variable (ideal for Render/Cloud)
@@ -55,7 +63,8 @@ def get_sheets_service() -> Any:
             "pointing to your credentials file, or GOOGLE_CREDS_JSON with raw credentials JSON."
         )
 
-    return build('sheets', 'v4', credentials=creds)
+    _sheets_service_cache = build('sheets', 'v4', credentials=creds)
+    return _sheets_service_cache
 
 
 def _get_all_rows() -> List[List[str]]:

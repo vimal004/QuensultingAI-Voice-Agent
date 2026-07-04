@@ -1,7 +1,7 @@
 {
   "agent_id": "",
   "channel": "voice",
-  "last_modification_timestamp": 1783155093854,
+  "last_modification_timestamp": 1783163576266,
   "agent_name": "Conversation Flow Agent",
   "version_description": "",
   "response_engine": {
@@ -93,12 +93,14 @@
   "allow_user_dtmf": true,
   "user_dtmf_options": {},
   "webhook_events": [
+    "call_started",
+    "call_ended",
     "call_analyzed"
   ],
   "conversationFlow": {
     "conversation_flow_id": "conversation_flow_cf070be85198",
     "version": 2,
-    "last_modification_timestamp": 1783161102928,
+    "last_modification_timestamp": 1783173521315,
     "global_prompt": "You are a warm, empathetic, professional dental receptionist for QuensultingAI Dental Clinic. You help callers with clinic questions, new appointment requests, and reschedule or cancel requests.\n\nCurrent date and time: {{current_time}}\n\n## Response Guidelines\n- Speak conversationally and naturally. Never sound robotic.\n- Ask only ONE question per turn. Never stack multiple questions.\n- If the caller interrupts you, stop speaking immediately, listen, and respond to what they just said. Do not finish your previous sentence and do not restart the flow — resume from where you left off.\n- If the caller corrects a detail (\"actually\", \"wait\", \"change that\"), update only that specific detail and briefly re-confirm just that field.\n- If the caller asks you to repeat or says they didn't hear, repeat your last message.\n- If the caller says \"hold on\", \"one moment\", or \"please wait\", respond with exactly: NO_RESPONSE_NEEDED\n- Use natural acknowledgments such as \"Of course\", \"Sure\", \"Got it\", \"Absolutely\", \"Perfect\", \"Understood\".\n\n## Guardrails\n- Never claim an appointment is officially confirmed for a specific slot. It is always a request pending front desk confirmation.\n- Never guess or invent clinic information you were not given. If you don't know, offer to connect the caller with the front desk.\n- Do not give medical advice beyond directing emergencies to emergency care.\n- If the caller asks about something unrelated to the clinic (jokes, sports, weather, news, politics), respond briefly like: \"Ha, that's a fun one! I'm best at helping with dental appointments and clinic questions though. Is there anything I can help you with today?\" Do not engage further with the off-topic subject.\n- When reading back a phone number, state only the last four digits unless the caller explicitly asks for the full number.\n- Always end every call with: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\"\n\n## Clinic Hours Awareness\nOur clinic is open Monday to Saturday, 9 AM to 6 PM. Closed on Sundays.\n- If the current day (from {{current_time}}) is a Sunday, proactively mention at the start: \"Just so you know, the clinic is closed today since it's Sunday, but I'd be happy to help you book for any day this coming week.\"\n- If the current time is before 9 AM or after 6 PM on a weekday, mention: \"The clinic is closed right now, but I can absolutely help you schedule an appointment during our business hours.\"\n- Do NOT repeat this awareness message more than once per call.\n\n## Repeated Misunderstanding Policy\nIf you fail to understand the caller 3 consecutive times (they keep saying \"what?\", \"I don't understand\", or you keep asking them to repeat), say: \"I'm sorry for the difficulty. Let me connect you with one of our team members who can help you directly.\" Then transition to the human escalation node.",
     "nodes": [
       {
@@ -276,15 +278,22 @@
       {
         "name": "End Call",
         "id": "success_end",
-        "type": "end",
-        "speak_during_execution": true,
+        "type": "conversation",
         "display_position": {
           "x": 4158,
           "y": -210
         },
         "instruction": {
           "type": "prompt",
-          "text": "Tell the caller: \"Your appointment request has been submitted.\" Then, if the caller provided an email address, say: \"Our front desk team will send a confirmation email to [their email] with your exact slot.\" If the caller did not provide an email, instead say: \"Our front desk team will contact you by phone to confirm your exact slot.\" Then say: \"Thank you for choosing QuensultingAI Dental Clinic. Have a wonderful day!\" Then end the call."
+          "text": "Tell the caller: \"Your appointment request has been submitted.\" Then, if the caller provided an email address, say: \"Our front desk team will send a confirmation email to [their email] with your exact slot.\" If the caller did not provide an email, instead say: \"Our front desk team will contact you by phone to confirm your exact slot.\" Then say: \"Thank you for choosing QuensultingAI Dental Clinic. Have a wonderful day!\""
+        },
+        "skip_response_edge": {
+          "destination_node_id": "final_hangup",
+          "id": "edge_success_end_hangup",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          }
         }
       },
       {
@@ -365,8 +374,7 @@
       {
         "name": "End Call",
         "id": "transfer_failed",
-        "type": "end",
-        "speak_during_execution": true,
+        "type": "conversation",
         "display_position": {
           "x": 4518,
           "y": 1710
@@ -374,13 +382,20 @@
         "instruction": {
           "type": "prompt",
           "text": "Tell the caller you weren't able to connect them to a team member right now, apologize briefly, and suggest they call the clinic back shortly. Then say: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\""
+        },
+        "skip_response_edge": {
+          "destination_node_id": "final_hangup",
+          "id": "edge_transfer_failed_hangup",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          }
         }
       },
       {
         "name": "End Call",
         "id": "end_call",
-        "type": "end",
-        "speak_during_execution": true,
+        "type": "conversation",
         "display_position": {
           "x": 2358,
           "y": 894
@@ -388,6 +403,14 @@
         "instruction": {
           "type": "prompt",
           "text": "Politely close the call: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\""
+        },
+        "skip_response_edge": {
+          "destination_node_id": "final_hangup",
+          "id": "edge_end_call_hangup",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          }
         }
       },
       {
@@ -566,15 +589,36 @@
       {
         "name": "Live Booking End Call",
         "id": "live_success_end",
-        "type": "end",
-        "speak_during_execution": true,
+        "type": "conversation",
         "display_position": {
-          "x": 2934,
-          "y": 534
+          "x": 2982,
+          "y": 654
         },
         "instruction": {
           "type": "prompt",
-          "text": "Tell the caller: \"Your appointment is confirmed.\" Then, if the caller provided an email address, say: \"We've sent a confirmation email to [email] with the details.\" If the caller did not provide an email, instead say: \"Our front desk team will contact you by phone to confirm your exact slot.\" Then say: \"Thank you for choosing QuensultingAI Dental Clinic. Have a wonderful day!\" Then end the call."
+          "text": "Tell the caller: \"Your appointment is confirmed.\" Then, if the caller provided an email address, say: \"We've sent a confirmation email to [email] with the details.\" If the caller did not provide an email, instead say: \"Our front desk team will contact you by phone to confirm your exact slot.\" Then say: \"Thank you for choosing QuensultingAI Dental Clinic. Have a wonderful day!\""
+        },
+        "skip_response_edge": {
+          "destination_node_id": "final_hangup",
+          "id": "edge_live_success_end_hangup",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          }
+        }
+      },
+      {
+        "name": "Final Hangup",
+        "id": "final_hangup",
+        "type": "end",
+        "speak_during_execution": false,
+        "display_position": {
+          "x": 5070,
+          "y": 774
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "End the call."
         }
       }
     ],

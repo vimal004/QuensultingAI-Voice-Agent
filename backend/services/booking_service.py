@@ -1,6 +1,6 @@
 import logging
 from backend.models.schemas import BookingDetails, CallType
-from automation.google_sheets import append_booking_to_sheet, cancel_booking_in_sheet
+from automation.google_sheets import append_booking_to_sheet, cancel_booking_in_sheet, reschedule_booking_in_sheet
 from automation.email_service import send_booking_confirmation_email, send_reschedule_cancel_notification_email
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,49 @@ def process_booking(booking: BookingDetails) -> dict:
     """
     booking_dict = booking.model_dump()
     
-    # ── Handle Reschedule (Confirmed Synchronously during call) ─────────────
+    # ── Handle Reschedule (Processed Asynchronously here) ───────────────────
     if booking.call_type == CallType.RESCHEDULE.value:
-        logger.info(f"Processing reschedule completion for Call ID: {booking.call_id}")
+        logger.info(f"Processing reschedule request for Call ID: {booking.call_id}")
+        
+        # 1. Asynchronously update Google Sheets
+        sheet_success = False
+        for attempt in range(1, 3):
+            try:
+                logger.info(f"Google Sheet reschedule: Attempt {attempt} for Call ID {booking.call_id}")
+                updated = reschedule_booking_in_sheet(
+                    full_name=booking.full_name,
+                    phone=booking.phone,
+                    new_date=booking.preferred_date,
+                    new_time=booking.preferred_time
+                )
+                if updated:
+                    sheet_success = True
+                    logger.info("Google Sheet reschedule succeeded.")
+                else:
+                    # Fallback: if row not found, append a new booking so their request is not lost
+                    logger.warning("Original booking not found for rescheduling. Appending as new booking fallback.")
+                    fallback_details = {
+                        "call_id": booking.call_id,
+                        "full_name": booking.full_name,
+                        "phone": booking.phone,
+                        "email": booking.email,
+                        "preferred_date": booking.preferred_date,
+                        "preferred_time": booking.preferred_time,
+                        "service": booking.service or "General Consultation",
+                        "notes": f"[Reschedule Request - Original not found] {booking.notes or ''}".strip(),
+                        "call_summary": booking.call_summary,
+                        "recording_url": booking.recording_url
+                    }
+                    append_booking_to_sheet(fallback_details)
+                    sheet_success = True
+                    logger.info("Google Sheet fallback append succeeded.")
+                break
+            except Exception as e:
+                logger.error(f"Google Sheet reschedule: Attempt {attempt} failed with error: {e}")
+                if attempt == 2:
+                    logger.error("Google Sheet reschedule failed after maximum retries.")
+        
+        # 2. SMTP Email notification
         email_success = False
         for attempt in range(1, 3):
             try:
@@ -35,7 +75,7 @@ def process_booking(booking: BookingDetails) -> dict:
         
         return {
             "call_id": booking.call_id,
-            "google_sheets_updated": True,  # Already updated synchronously
+            "google_sheets_updated": sheet_success,
             "email_notification_sent": email_success,
             "type": "reschedule"
         }

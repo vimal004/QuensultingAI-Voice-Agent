@@ -56,11 +56,13 @@ def test_process_booking_success(mock_send_email, mock_append_sheet, sample_book
     assert mock_append_sheet.call_count == 1
     assert mock_send_email.call_count == 1
 
+@patch("backend.services.booking_service.reschedule_booking_in_sheet")
 @patch("backend.services.booking_service.send_booking_confirmation_email")
-def test_process_booking_reschedule_success(mock_send_confirm_email, reschedule_booking):
+def test_process_booking_reschedule_success(mock_send_confirm_email, mock_reschedule_sheet, reschedule_booking):
     """
     Test standard reschedule processing triggers reschedule confirmation email.
     """
+    mock_reschedule_sheet.return_value = True
     mock_send_confirm_email.return_value = True
     
     result = process_booking(reschedule_booking)
@@ -68,20 +70,50 @@ def test_process_booking_reschedule_success(mock_send_confirm_email, reschedule_
     assert result["google_sheets_updated"] is True
     assert result["email_notification_sent"] is True
     assert result["type"] == "reschedule"
+    assert mock_reschedule_sheet.call_count == 1
     assert mock_send_confirm_email.call_count == 1
+    mock_reschedule_sheet.assert_called_once_with(
+        full_name=reschedule_booking.full_name,
+        phone=reschedule_booking.phone,
+        new_date=reschedule_booking.preferred_date,
+        new_time=reschedule_booking.preferred_time
+    )
 
+@patch("backend.services.booking_service.reschedule_booking_in_sheet")
 @patch("backend.services.booking_service.send_booking_confirmation_email")
-def test_process_booking_reschedule_retry_once(mock_send_confirm_email, reschedule_booking):
+def test_process_booking_reschedule_retry_once(mock_send_confirm_email, mock_reschedule_sheet, reschedule_booking):
     """
     Test reschedule email confirmation retry-once behavior on failure.
     """
+    mock_reschedule_sheet.return_value = True
     mock_send_confirm_email.side_effect = [RuntimeError("SMTP Timeout"), True]
     
     result = process_booking(reschedule_booking)
     
     assert result["google_sheets_updated"] is True
     assert result["email_notification_sent"] is True
+    assert mock_reschedule_sheet.call_count == 1
     assert mock_send_confirm_email.call_count == 2
+
+@patch("backend.services.booking_service.append_booking_to_sheet")
+@patch("backend.services.booking_service.reschedule_booking_in_sheet")
+@patch("backend.services.booking_service.send_booking_confirmation_email")
+def test_process_booking_reschedule_fallback(mock_send_confirm_email, mock_reschedule_sheet, mock_append_sheet, reschedule_booking):
+    """
+    Test reschedule fallback when original booking row is not found in sheets.
+    It should append a new booking to the sheet.
+    """
+    mock_reschedule_sheet.return_value = False  # Not found
+    mock_append_sheet.return_value = True
+    mock_send_confirm_email.return_value = True
+    
+    result = process_booking(reschedule_booking)
+    
+    assert result["google_sheets_updated"] is True
+    assert result["email_notification_sent"] is True
+    assert mock_reschedule_sheet.call_count == 1
+    assert mock_append_sheet.call_count == 1
+    assert mock_send_confirm_email.call_count == 1
 
 @patch("backend.services.booking_service.cancel_booking_in_sheet")
 @patch("backend.services.booking_service.send_reschedule_cancel_notification_email")

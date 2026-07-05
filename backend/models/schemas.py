@@ -78,3 +78,4 @@ class SlotAvailabilityResponse(BaseModel):
     available: bool
     message: str
     alternatives: List[AlternativeSlot] = Field(default_factory=list)
+    booking_already_exists: bool = Field(False, description="Whether an active booking already exists for this caller on the same day")

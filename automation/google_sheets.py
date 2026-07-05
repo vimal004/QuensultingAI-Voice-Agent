@@ -484,6 +484,43 @@ def check_slot_availability(
         logger.error(f"Could not fetch rows from Google Sheets: {e}", exc_info=True)
         raise
 
+    # 4. Check if the caller already has an active booking on this exact date (same-day duplicate check)
+    if not is_reschedule and full_name and phone:
+        target_phone = normalize_phone(phone)
+        target_name = full_name.lower().strip()
+        target_name_parts = set(target_name.split())
+        
+        for idx, row in enumerate(rows):
+            if len(row) <= COL_DATE:
+                continue
+                
+            row_service = row[COL_SERVICE] if len(row) > COL_SERVICE else ""
+            if "[CANCELLED]" in row_service:
+                continue
+                
+            row_phone = normalize_phone(row[COL_PHONE]) if len(row) > COL_PHONE else ""
+            row_name = row[COL_FULL_NAME].lower().strip() if len(row) > COL_FULL_NAME else ""
+            row_name_parts = set(row_name.split())
+            row_date = normalize_date(row[COL_DATE])
+            
+            phone_matches = bool(target_phone and row_phone and (target_phone in row_phone or row_phone in target_phone))
+            name_exact_match = bool(target_name and row_name and target_name == row_name)
+            name_significant_match = name_exact_match or (len(target_name_parts & row_name_parts) >= 2)
+            
+            if (phone_matches or name_exact_match or name_significant_match) and row_date == norm_date:
+                existing_time = row[COL_TIME] if len(row) > COL_TIME else "unknown time"
+                existing_service = row_service if row_service else "General Consultation"
+                logger.info(f"Duplicate booking detected: {full_name} ({phone}) already has an appointment for {existing_service} on {row_date} at {existing_time}.")
+                return {
+                    "available": False,
+                    "booking_already_exists": True,
+                    "message": (
+                        f"It looks like you already have an appointment booked for {existing_service} on {preferred_date} at {existing_time}. "
+                        f"Would you like to reschedule that appointment to the new time of {preferred_time} instead?"
+                    ),
+                    "alternatives": []
+                }
+
     # Collect all booked date+time pairs
     booked_slots: set[tuple[str, str]] = set()
     for idx, row in enumerate(rows):
@@ -507,6 +544,7 @@ def check_slot_availability(
             success_msg = f"Great news! The slot on {preferred_date} at {preferred_time} is available for rescheduling. Shall I go ahead and confirm this change for you?"
         return {
             "available": True,
+            "booking_already_exists": False,
             "message": success_msg,
             "alternatives": []
         }
@@ -519,6 +557,7 @@ def check_slot_availability(
         alt_text = ", ".join(f"{a['time']}" for a in alternatives[:3])
         return {
             "available": False,
+            "booking_already_exists": False,
             "message": (
                 f"I'm sorry, {preferred_time} on {preferred_date} is already taken. "
                 f"I do have availability at {alt_text} on the same day. Would any of those work for you?"
@@ -529,6 +568,7 @@ def check_slot_availability(
 
     return {
         "available": False,
+        "booking_already_exists": False,
         "message": (
             f"I'm sorry, we don't have any open slots on {preferred_date}. "
             "Would you like to try a different date, or would you prefer our front desk to call you back with options?"

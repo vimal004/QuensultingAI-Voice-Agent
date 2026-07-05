@@ -1,23 +1,23 @@
 {
   "agent_id": "",
   "channel": "voice",
-  "last_modification_timestamp": 1783163576266,
+  "last_modification_timestamp": 1783173855471,
   "agent_name": "Conversation Flow Agent",
   "version_description": "",
   "response_engine": {
     "type": "conversation-flow",
-    "version": 2,
+    "version": 3,
     "conversation_flow_id": "conversation_flow_cf070be85198"
   },
   "webhook_url": "https://quensultingai-voice-agent.onrender.com/webhook/retell",
   "language": "en-US",
   "data_storage_setting": "everything",
   "opt_in_signed_url": false,
-  "version": 2,
-  "base_version": 1,
+  "version": 3,
+  "base_version": 2,
   "assigned_tags": [],
   "is_published": false,
-  "version_title": "July 3 Final",
+  "version_title": "Lock Final",
   "post_call_analysis_model": "gpt-4.1",
   "pii_config": {
     "mode": "post_call",
@@ -99,8 +99,8 @@
   ],
   "conversationFlow": {
     "conversation_flow_id": "conversation_flow_cf070be85198",
-    "version": 2,
-    "last_modification_timestamp": 1783173521315,
+    "version": 3,
+    "last_modification_timestamp": 1783247612227,
     "global_prompt": "You are a warm, empathetic, professional dental receptionist for QuensultingAI Dental Clinic. You help callers with clinic questions, new appointment requests, and reschedule or cancel requests.\n\nCurrent date and time: {{current_time}}\n\n## Response Guidelines\n- Speak conversationally and naturally. Never sound robotic.\n- Ask only ONE question per turn. Never stack multiple questions.\n- If the caller interrupts you, stop speaking immediately, listen, and respond to what they just said. Do not finish your previous sentence and do not restart the flow — resume from where you left off.\n- If the caller corrects a detail (\"actually\", \"wait\", \"change that\"), update only that specific detail and briefly re-confirm just that field.\n- If the caller asks you to repeat or says they didn't hear, repeat your last message.\n- If the caller says \"hold on\", \"one moment\", or \"please wait\", respond with exactly: NO_RESPONSE_NEEDED\n- Use natural acknowledgments such as \"Of course\", \"Sure\", \"Got it\", \"Absolutely\", \"Perfect\", \"Understood\".\n\n## Guardrails\n- Never claim an appointment is officially confirmed for a specific slot. It is always a request pending front desk confirmation.\n- Never guess or invent clinic information you were not given. If you don't know, offer to connect the caller with the front desk.\n- Do not give medical advice beyond directing emergencies to emergency care.\n- If the caller asks about something unrelated to the clinic (jokes, sports, weather, news, politics), respond briefly like: \"Ha, that's a fun one! I'm best at helping with dental appointments and clinic questions though. Is there anything I can help you with today?\" Do not engage further with the off-topic subject.\n- When reading back a phone number, state only the last four digits unless the caller explicitly asks for the full number.\n- Always end every call with: \"Thank you for calling QuensultingAI Dental Clinic. Have a wonderful day!\"\n\n## Clinic Hours Awareness\nOur clinic is open Monday to Saturday, 9 AM to 6 PM. Closed on Sundays.\n- If the current day (from {{current_time}}) is a Sunday, proactively mention at the start: \"Just so you know, the clinic is closed today since it's Sunday, but I'd be happy to help you book for any day this coming week.\"\n- If the current time is before 9 AM or after 6 PM on a weekday, mention: \"The clinic is closed right now, but I can absolutely help you schedule an appointment during our business hours.\"\n- Do NOT repeat this awareness message more than once per call.\n\n## Repeated Misunderstanding Policy\nIf you fail to understand the caller 3 consecutive times (they keep saying \"what?\", \"I don't understand\", or you keep asking them to repeat), say: \"I'm sorry for the difficulty. Let me connect you with one of our team members who can help you directly.\" Then transition to the human escalation node.",
     "nodes": [
       {
@@ -367,8 +367,8 @@
         },
         "type": "transfer_call",
         "display_position": {
-          "x": 870,
-          "y": -522
+          "x": 894,
+          "y": -546
         }
       },
       {
@@ -503,6 +503,10 @@
         }
       },
       {
+        "instruction": {
+          "type": "prompt",
+          "text": "Tell the caller: 'Let me check that for you right now, one moment please.'\n\nUse the `check_slot_availability` tool, passing the caller's preferred_date, preferred_time, service, full_name, and phone.\n\nBased on the tool response:\n- If the tool response indicates that `booking_already_exists` is true (meaning the patient already has an active appointment on the requested date): Read the tool's message and ask the caller: 'Would you like to reschedule that existing appointment to this new time?'\n  - If the caller says YES: Tell them 'Great, I have rescheduled that for you.' and transition to the closing step (transition edge: edge_live_success).\n  - If the caller says NO: Ask them if they want to keep their existing appointment and pick a different date or time for the new booking. If they want to try another day or time, go back to collecting booking details. If they want to stop, end the call.\n- If the slot IS available: 'Great news! That slot is available. Your appointment is confirmed for [date] at [time] for [service]. You'll receive a confirmation email at [email] shortly.'\n- If the slot is NOT available and alternative slots are returned: 'I'm sorry, that exact slot isn't available. I do have [list 2-3 alternatives]. Would any of those work for you?'\n- If the slot is NOT available and no alternatives: 'I'm sorry, we don't have availability at that time. Would you like to pick a different date or time, or would you prefer our front desk to call you back with options?'\n- If the tool call fails: 'I'm having a little trouble checking availability right now. Would you like me to submit your request and have our front desk confirm your slot by email instead?'\n\nAfter a successful live booking or rescheduling confirmation, move to the closing step. If the caller picks an alternative slot, update the details and move to the closing step. If the caller wants to change date or time, go back to collecting booking details. If the tool fails and the caller agrees to email, move to the closing step."
+        },
         "name": "Live Slot Lookup",
         "edges": [
           {
@@ -510,7 +514,7 @@
             "id": "edge_live_success",
             "transition_condition": {
               "type": "prompt",
-              "prompt": "Slot confirmed or alternative slot accepted"
+              "prompt": "Slot confirmed, alternative slot accepted, or caller confirmed rescheduling their existing same-day appointment to this new time"
             }
           },
           {
@@ -543,9 +547,9 @@
           "tool_check_slot_availability"
         ],
         "type": "subagent",
-        "instruction": {
-          "type": "prompt",
-          "text": "Tell the caller: \"Let me check that for you right now, one moment please.\"\n\nUse the `check_slot_availability` tool with the caller's preferred_date, preferred_time, and service.\n\nBased on the tool response:\n- If the slot IS available: \"Great news! That slot is available. Your appointment is confirmed for [date] at [time] for [service]. You'll receive a confirmation email at [email] shortly.\"\n- If the slot is NOT available and alternative slots are returned: \"I'm sorry, that exact slot isn't available. I do have [list 2-3 alternatives]. Would any of those work for you?\"\n- If the slot is NOT available and no alternatives: \"I'm sorry, we don't have availability at that time. Would you like to pick a different date or time, or would you prefer our front desk to call you back with options?\"\n- If the tool call fails: \"I'm having a little trouble checking availability right now. Would you like me to submit your request and have our front desk confirm your slot by email instead?\"\n\nAfter a successful live booking, move to the closing step. If the caller picks an alternative slot, update the details and move to the closing step. If the caller wants to change date or time, go back to collecting booking details. If the tool fails and the caller agrees to email, move to the closing step."
+        "display_position": {
+          "x": 558,
+          "y": -378
         }
       },
       {
@@ -648,11 +652,11 @@
             },
             "full_name": {
               "type": "string",
-              "description": "Optional. The full name of the patient on the existing booking. Only used for reschedules."
+              "description": "Optional. The full name of the patient. Used to check for duplicate same-day bookings during new bookings, and to locate the existing booking for reschedules."
             },
             "phone": {
               "type": "string",
-              "description": "Optional. The phone number on the existing booking. Only used for reschedules."
+              "description": "Optional. The phone number of the patient. Used to check for duplicate same-day bookings during new bookings, and to locate the existing booking for reschedules."
             },
             "service": {
               "type": "string",

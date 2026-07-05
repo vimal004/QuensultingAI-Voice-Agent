@@ -246,3 +246,50 @@ def test_normalize_date():
     assert normalize_date("6 Jul") == f"{current_year}-07-06"
     assert normalize_date("2026-07-06") == "2026-07-06"
     assert normalize_date("today") == datetime.now().strftime("%Y-%m-%d")
+
+@patch("automation.google_sheets._get_all_rows")
+def test_check_slot_availability_duplicate_booking_detected(mock_get_all_rows):
+    """
+    Test that checking slot availability for a new booking returns duplicate warning
+    if the patient already has an active appointment on that same day.
+    """
+    mock_get_all_rows.return_value = [
+        ["call_1", "now", "Alice Smith", "111-222-3333", "alice@example.com", "2026-07-06", "10:00 AM", "Cleaning"]
+    ]
+    
+    result = check_slot_availability(
+        preferred_date="2026-07-06",
+        preferred_time="2:00 PM",
+        service="Whitening",
+        is_reschedule=False,
+        full_name="Alice Smith",
+        phone="111-222-3333"
+    )
+    
+    assert result["available"] is False
+    assert result["booking_already_exists"] is True
+    assert "already have an appointment booked" in result["message"]
+    assert "Cleaning" in result["message"]
+
+@patch("automation.google_sheets._get_all_rows")
+def test_check_slot_availability_duplicate_booking_ignored_if_cancelled(mock_get_all_rows):
+    """
+    Test that duplicate check ignores cancelled appointments.
+    """
+    mock_get_all_rows.return_value = [
+        ["call_1", "now", "Alice Smith", "111-222-3333", "alice@example.com", "2026-07-06", "10:00 AM", "[CANCELLED] Cleaning"]
+    ]
+    
+    result = check_slot_availability(
+        preferred_date="2026-07-06",
+        preferred_time="2:00 PM",
+        service="Whitening",
+        is_reschedule=False,
+        full_name="Alice Smith",
+        phone="111-222-3333"
+    )
+    
+    # Since the 10 AM booking was cancelled, 2 PM Whitening should be available
+    assert result["available"] is True
+    assert result["booking_already_exists"] is False
+

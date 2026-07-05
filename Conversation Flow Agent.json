@@ -9,7 +9,7 @@
     "version": 3,
     "conversation_flow_id": "conversation_flow_cf070be85198"
   },
-  "webhook_url": "https://quensultingai-voice-agent.onrender.com/webhook/retell",
+  "webhook_url": "https://your-deployed-backend-url.onrender.com/webhook/retell",
   "language": "en-US",
   "data_storage_setting": "everything",
   "opt_in_signed_url": false,
@@ -350,7 +350,7 @@
       {
         "transfer_destination": {
           "type": "predefined",
-          "number": "+917603832537"
+          "number": "+1234567890"
         },
         "edge": {
           "destination_node_id": "transfer_failed",
@@ -672,7 +672,7 @@
             "preferred_time"
           ]
         },
-        "url": "https://quensultingai-voice-agent.onrender.com/check-availability"
+        "url": "https://your-deployed-backend-url.onrender.com/check-availability"
       }
     ],
     "model_choice": {

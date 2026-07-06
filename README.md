@@ -81,33 +81,7 @@ Caller → RetellAI → Webhook → FastAPI Backend
 
 ## 🔧 Quick Setup
 
-### Option 1: Use Hosted Backend (Easiest)
-
-1. **Import the RetellAI Agent**
-   - Open `Conversation Flow Agent.json` in RetellAI dashboard
-   - Update the tool URL to: `https://quensultingai-voice-agent.onrender.com/check-availability`
-   - Configure your RetellAI phone number
-
-2. **Set Environment Variables in RetellAI**
-   - Add your webhook URL: `https://quensultingai-voice-agent.onrender.com/webhook/retell`
-   - Set `RETELL_API_KEY` in the hosted backend (already configured)
-
-3. **Configure Google Sheets**
-   - Create a new Google Sheet
-   - Share with your service account email (editor permissions)
-   - Note the Sheet ID from the URL
-
-4. **Configure Email**
-   - Set up SMTP credentials (host, port, username, password)
-   - Configure sender and recipient emails
-
-5. **Test the Agent**
-   - Call your RetellAI phone number
-   - Try booking an appointment
-   - Check Google Sheet for new entries
-   - Verify email notifications
-
-### Option 2: Local Development
+## Local Development
 
 1. **Clone the repository**
    ```bash
